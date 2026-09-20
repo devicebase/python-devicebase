@@ -1,15 +1,23 @@
-"""Usage Examples for DeviceBase Python SDK
+"""Usage examples for the DeviceBase Python SDK.
 
-Run examples:
-    python device_control.py
-    python screenshot_hierarchy.py
-    python websocket_minicap.py
-    python websocket_minitouch.py
-    python async_stream.py
-    python error_handling.py
-    python context_manager.py
+Every example discovers its device rather than hard-coding a serial, so they run
+against any account that has one:
 
-Note: Examples require DEVICEBASE_API_KEY environment variable set.
+    python examples/discovery.py             # finding a serial (start here)
+    python examples/device_control.py        # mobile: touch, apps, text, shell
+    python examples/browser_automation.py    # browser over CDP
+    python examples/computer_control.py      # desktop: mouse, keyboard, host shell
+    python examples/screenshot_hierarchy.py  # cross-family screenshots + UI tree
+    python examples/error_handling.py        # both failure layers
+    python examples/context_manager.py       # lifecycle, and multi-device use
+    python examples/async_stream.py          # async frame streaming
+    python examples/websocket_minicap.py     # real-time screen streaming
+    python examples/websocket_minitouch.py   # low-level touch control
+
+They read ``DEVICEBASE_API_KEY`` from the environment, and optionally
+``DEVICEBASE_BASE_URL``. Run one as a module so imports resolve:
+
+    DEVICEBASE_API_KEY=… python -m examples.discovery
 """
 
-__all__ = []
+__all__: list[str] = []

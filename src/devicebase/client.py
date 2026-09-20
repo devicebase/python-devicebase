@@ -1,111 +1,103 @@
-"""Main DeviceBase client providing high-level access to all device operations."""
+"""A serial-bound facade over the HTTP client, for one device.
+
+Every mobile action here fills in the serial, so an Android / HarmonyOS / iOS
+automation script never repeats it. The facade is platform-agnostic about the
+serial it holds — binding a browser or computer serial works exactly as well —
+but the *browser* and *computer* action families stay on
+:class:`~devicebase.http_client.DeviceBaseHttpClient`, reached through
+:attr:`DeviceBaseClient.http`, because those actions all take a serial per call
+and one client is meant to drive many devices.
+"""
 
 from __future__ import annotations
 
 import os
 from collections.abc import AsyncIterator
+from typing import Any
 
-from devicebase.http_client import (
-    AuthenticationError,
-    DeviceBaseHttpClient,
-)
+# AuthenticationError is re-exported: earlier versions of this module raised it
+# from here, so `from devicebase.client import AuthenticationError` has to keep
+# working.
+from devicebase.errors import AuthenticationError, DeviceBaseError  # noqa: F401
+from devicebase.http_client import DeviceBaseHttpClient
 from devicebase.models import (
     AppInfo,
     Bounds,
+    Device,
     DeviceInfo,
     HierarchyInfo,
     OperationResult,
     Point,
 )
+from devicebase.transport import DEFAULT_BASE_URL, DEFAULT_TIMEOUT
 from devicebase.websocket_client import MinicapClient, MinitouchClient
 
 
 class DeviceBaseClient:
-    """Main client for interacting with the DeviceBase API.
+    """A serial-bound view of the API for one device.
 
-    This client provides a unified interface for all device automation operations,
-    including HTTP-based device control and WebSocket-based streaming and touch control.
+    Configuration can come from constructor arguments or the environment:
 
-    Configuration can be provided via constructor parameters or environment variables:
-    - DEVICEBASE_BASE_URL: API base URL (default: https://api.devicebase.cn)
-    - DEVICEBASE_API_KEY: JWT API key for authentication
+    * ``DEVICEBASE_BASE_URL`` — API base URL (default ``https://api.devicebase.cn``)
+    * ``DEVICEBASE_API_KEY`` — Bearer token
 
     Example:
         ```python
-        import asyncio
-        from devicebase import DeviceBaseClient
+        from devicebase import DeviceBaseClient, Point
 
-        # Using environment variables
-        client = DeviceBaseClient(serial="device123")
-
-        # Or with explicit configuration
-        client = DeviceBaseClient(
-            serial="device123",
-            base_url="https://api.devicebase.cn",
-            api_key="your-jwt-token"
-        )
-
-        # Get device info
-        info = client.get_device_info()
-
-        # Control the device
-        client.tap(Point(x=100, y=200))
-        client.launch_app("com.example.app")
-
-        # WebSocket streaming (async)
-        async def stream_screen():
-            async for frame in client.stream_minicap():
-                # Process JPEG frame
-                pass
-
-        asyncio.run(stream_screen())
+        with DeviceBaseClient(serial="EDGER9DE2GFD03XH-001") as client:
+            client.tap(100, 200)
+            client.swipe(0, 500, 500, 500)
+            client.launch_app("com.example.app")
+            open("screen.jpg", "wb").write(client.get_screenshot())
         ```
+
+    Args:
+        serial: The device serial from :meth:`~devicebase.api.device.DeviceApi.list_devices`.
+            Optional so that discovery works before any device is known; the
+            mobile actions raise :class:`~devicebase.errors.DeviceBaseError`
+            until one is bound.
+        base_url: API base URL. Falls back to ``DEVICEBASE_BASE_URL``.
+        api_key: Bearer token. Falls back to ``DEVICEBASE_API_KEY``.
+        timeout: Default deadline for a request, in seconds.
+
+    Raises:
+        AuthenticationError: If no API key is available.
     """
 
-    DEFAULT_BASE_URL = "https://api.devicebase.cn"
+    #: Kept as a class attribute because this class has always exposed it there.
+    DEFAULT_BASE_URL = DEFAULT_BASE_URL
 
     def __init__(
         self,
-        serial: str,
+        serial: str | None = None,
         base_url: str | None = None,
         api_key: str | None = None,
-        timeout: float = 30.0,
+        timeout: float = DEFAULT_TIMEOUT,
     ) -> None:
-        """Initialize the DeviceBase client.
-
-        Args:
-            serial: The device unique identifier.
-            base_url: The base URL of the DeviceBase API. If not provided,
-                reads from DEVICEBASE_BASE_URL environment variable,
-                defaults to https://api.devicebase.cn.
-            api_key: JWT API key for authentication. If not provided,
-                reads from DEVICEBASE_API_KEY environment variable.
-            timeout: Request timeout in seconds for HTTP operations.
-
-        Raises:
-            AuthenticationError: If no API key is provided via parameter
-                or environment variable.
-        """
         self._serial = serial
-        self._base_url = base_url or os.environ.get(
-            "DEVICEBASE_BASE_URL", self.DEFAULT_BASE_URL
-        )
+        self._base_url = (
+            base_url or os.environ.get("DEVICEBASE_BASE_URL") or DEFAULT_BASE_URL
+        ).rstrip("/")
         self._api_key = api_key or os.environ.get("DEVICEBASE_API_KEY")
-
-        if not self._api_key:
-            raise AuthenticationError(
-                "API key is required. Provide it via 'api_key' parameter "
-                "or DEVICEBASE_API_KEY environment variable."
-            )
-
         self._http = DeviceBaseHttpClient(
             base_url=self._base_url,
             api_key=self._api_key,
             timeout=timeout,
         )
 
+    @property
+    def serial(self) -> str | None:
+        """The serial this client is bound to, or ``None``."""
+        return self._serial
+
+    @property
+    def http(self) -> DeviceBaseHttpClient:
+        """The full client, for the browser, computer and listing calls."""
+        return self._http
+
     def close(self) -> None:
-        """Close the client and release all resources."""
+        """Close the client and release its connection pool."""
         self._http.close()
 
     def __enter__(self) -> DeviceBaseClient:
@@ -116,222 +108,216 @@ class DeviceBaseClient:
         """Context manager exit."""
         self.close()
 
-    # Device Info
+    # Discovery
+
+    def list_devices(
+        self,
+        keyword: str | None = None,
+        state: str | None = None,
+        device_type: str | None = None,
+        limit: int | None = None,
+    ) -> list[Device]:
+        """List the devices accessible to the current API key.
+
+        Needs no serial, so it is usable on a client constructed for discovery
+        alone. See :meth:`DeviceBaseHttpClient.list_devices` for the filters.
+        """
+        return self._http.list_devices(
+            keyword=keyword,
+            state=state,
+            device_type=device_type,
+            limit=limit,
+        )
+
+    # Device info
+
     def get_device_info(self) -> DeviceInfo:
-        """Get detailed information about the device.
+        """Get detailed information about the device."""
+        return self._http.get_device_info(self._require_serial())
 
-        Returns:
-            DeviceInfo containing device status, hardware info, and connection state.
+    # Touch
 
-        Raises:
-            DeviceNotFoundError: If the device is not found or not connected.
-            ValidationError: If the serial is invalid.
-        """
-        return self._http.get_device_info(self._serial)
-
-    # Touch Operations
     def tap(self, x: int, y: int) -> OperationResult:
-        """Perform a single tap at the specified coordinates.
-
-        Args:
-            x: Horizontal coordinate (pixels from left).
-            y: Vertical coordinate (pixels from top).
-
-        Returns:
-            OperationResult indicating success or failure.
-        """
-        return self._http.tap(self._serial, Point(x=x, y=y))
+        """Tap once at the given coordinates."""
+        return self._http.tap(self._require_serial(), Point(x=x, y=y))
 
     def double_tap(self, x: int, y: int) -> OperationResult:
-        """Perform a double tap at the specified coordinates.
-
-        Args:
-            x: Horizontal coordinate.
-            y: Vertical coordinate.
-
-        Returns:
-            OperationResult indicating success or failure.
-        """
-        return self._http.double_tap(self._serial, Point(x=x, y=y))
+        """Tap twice at the given coordinates."""
+        return self._http.double_tap(self._require_serial(), Point(x=x, y=y))
 
     def long_press(self, x: int, y: int) -> OperationResult:
-        """Perform a long press at the specified coordinates.
+        """Press and hold at the given coordinates."""
+        return self._http.long_press(self._require_serial(), Point(x=x, y=y))
 
-        Args:
-            x: Horizontal coordinate.
-            y: Vertical coordinate.
-
-        Returns:
-            OperationResult indicating success or failure.
-        """
-        return self._http.long_press(self._serial, Point(x=x, y=y))
-
-    def swipe(
-        self, x1: int, y1: int, x2: int, y2: int
-    ) -> OperationResult:
-        """Perform a swipe gesture from start to end coordinates.
-
-        Args:
-            x1: Starting X coordinate.
-            y1: Starting Y coordinate.
-            x2: Ending X coordinate.
-            y2: Ending Y coordinate.
-
-        Returns:
-            OperationResult indicating success or failure.
-        """
-        return self._http.swipe(self._serial, Bounds(x1=x1, y1=y1, x2=x2, y2=y2))
+    def swipe(self, x1: int, y1: int, x2: int, y2: int) -> OperationResult:
+        """Swipe from ``(x1, y1)`` to ``(x2, y2)``."""
+        return self._http.swipe(
+            self._require_serial(),
+            Bounds(x1=x1, y1=y1, x2=x2, y2=y2),
+        )
 
     # Navigation
-    def back(self) -> OperationResult:
-        """Simulate the device back button press.
 
-        Returns:
-            OperationResult indicating success or failure.
-        """
-        return self._http.back(self._serial)
+    def back(self) -> OperationResult:
+        """Press the device back button."""
+        return self._http.back(self._require_serial())
 
     def home(self) -> OperationResult:
-        """Simulate the device home button press.
+        """Press the device home button."""
+        return self._http.home(self._require_serial())
 
-        Returns:
-            OperationResult indicating success or failure.
-        """
-        return self._http.home(self._serial)
+    # Apps
 
-    # App Operations
     def launch_app(self, app_name: str) -> OperationResult:
-        """Launch an application on the device.
+        """Launch an application on the device."""
+        return self._http.launch_app(self._require_serial(), app_name)
 
-        Args:
-            app_name: The package name or identifier of the app to launch.
+    def stop_app(self, app_name: str) -> OperationResult:
+        """Stop an application on the device."""
+        return self._http.stop_app(self._require_serial(), app_name)
 
-        Returns:
-            OperationResult indicating success or failure.
-        """
-        return self._http.launch_app(self._serial, app_name)
+    def stop_current_app(self) -> OperationResult:
+        """Stop the app currently in the foreground."""
+        return self._http.stop_current_app(self._require_serial())
 
     def get_current_app(self) -> AppInfo:
-        """Get information about the currently running foreground app.
+        """Get information about the current foreground app."""
+        return self._http.get_current_app(self._require_serial())
 
-        Returns:
-            AppInfo containing the current app name and details.
-        """
-        return self._http.get_current_app(self._serial)
+    # Text
 
-    # Text Input
     def input_text(self, text: str) -> OperationResult:
-        """Input text into the currently focused field.
-
-        Args:
-            text: The text to input.
-
-        Returns:
-            OperationResult indicating success or failure.
-        """
-        return self._http.input_text(self._serial, text)
+        """Insert text into the focused field."""
+        return self._http.input_text(self._require_serial(), text)
 
     def clear_text(self) -> OperationResult:
-        """Clear text in the currently focused field.
+        """Clear the focused text field."""
+        return self._http.clear_text(self._require_serial())
 
-        Returns:
-            OperationResult indicating success or failure.
+    # Shell
+
+    def bash(self, command: str) -> OperationResult:
+        """Run a shell command on the device (adb/hdc platforms only).
+
+        The command's own exit status comes back as ``data["exitCode"]``; a
+        non-zero value does not raise.
         """
-        return self._http.clear_text(self._serial)
+        return self._http.bash(self._require_serial(), command)
 
-    # UI Hierarchy
+    # UI hierarchy
+
     def dump_hierarchy(self) -> HierarchyInfo:
-        """Get the current UI hierarchy structure.
+        """Get the current UI hierarchy tree."""
+        return self._http.dump_hierarchy(self._require_serial())
 
-        Returns:
-            HierarchyInfo containing the UI element tree.
-        """
-        return self._http.dump_hierarchy(self._serial)
+    # Install
+
+    def install_app(self, app_path: str) -> OperationResult:
+        """Start installing a package, from a path on the agent host."""
+        return self._http.install_app(self._require_serial(), app_path)
+
+    def install_status(self, install_id: str) -> OperationResult:
+        """Query the background install task started by :meth:`install_app`."""
+        return self._http.install_status(self._require_serial(), install_id)
 
     # Screenshots
+
     def get_screenshot(self) -> bytes:
-        """Get a screenshot of the device screen as JPEG bytes.
+        """Capture the device screen as raw image bytes (JPEG).
 
-        Returns:
-            Raw JPEG image bytes.
-
-        Raises:
-            DeviceNotFoundError: If the device is not found.
+        The route dispatches by device type, so a client bound to a browser or
+        computer serial captures that platform's screen instead.
         """
-        return self._http.get_screenshot(self._serial)
+        return self._http.get_screenshot(self._require_serial())
 
     def download_screenshot(self) -> bytes:
-        """Download screenshot as a file attachment.
+        """Fetch the device's screenshot as a file attachment."""
+        return self._http.download_screenshot(self._require_serial())
 
-        The filename will be {serial}_screenshot.jpg.
+    # WebSocket clients
 
-        Returns:
-            Raw JPEG image bytes.
-        """
-        return self._http.download_screenshot(self._serial)
-
-    # WebSocket Clients
     def minicap_client(self) -> MinicapClient:
-        """Create a minicap WebSocket client for screen streaming.
-
-        Returns:
-            MinicapClient configured for the device.
+        """Create a minicap client for screen streaming.
 
         Example:
             ```python
-            client = DeviceBaseClient(serial="device123")
-            minicap = client.minicap_client()
-
-            async for frame in minicap.stream_frames():
-                # Process JPEG frame
-                pass
+            async for frame in client.minicap_client().stream_frames():
+                ...  # frame is JPEG bytes
             ```
         """
         return MinicapClient(
             base_url=self._base_url,
-            serial=self._serial,
+            serial=self._require_serial(),
             api_key=self._api_key,
         )
 
     def minitouch_client(self) -> MinitouchClient:
-        """Create a minitouch WebSocket client for touch control.
-
-        Returns:
-            MinitouchClient configured for the device.
+        """Create a minitouch client for low-level touch control.
 
         Example:
             ```python
-            client = DeviceBaseClient(serial="device123")
-            minitouch = client.minitouch_client()
-
-            async with minitouch:
+            async with client.minitouch_client() as minitouch:
                 await minitouch.tap(100, 200)
             ```
         """
         return MinitouchClient(
             base_url=self._base_url,
-            serial=self._serial,
+            serial=self._require_serial(),
             api_key=self._api_key,
         )
 
-    # Async streaming convenience methods
     def stream_minicap(self) -> AsyncIterator[bytes]:
         """Stream JPEG frames from the device screen.
 
-        This is a convenience method that creates a minicap client
-        and yields frames from its stream.
-
-        Yields:
-            JPEG image bytes for each frame.
-
-        Example:
-            ```python
-            client = DeviceBaseClient(serial="device123")
-
-            async for frame in client.stream_minicap():
-                with open("frame.jpg", "wb") as f:
-                    f.write(frame)
-            ```
+        A convenience wrapper over :meth:`minicap_client`.
         """
-        client = self.minicap_client()
-        return client.stream_frames()
+        return self.minicap_client().stream_frames()
+
+    # Internals
+
+    def _require_serial(self) -> str:
+        """Return the bound serial, or explain how to bind one."""
+        if not self._serial:
+            raise DeviceBaseError(
+                "No device serial is bound. Pass serial=… to DeviceBaseClient, "
+                "or use client.http.<action>(serial, …) and pass one per call. "
+                "DeviceBaseClient.list_devices() finds the serials available to "
+                "the current API key."
+            )
+        return self._serial
+
+
+def list_devices(
+    keyword: str | None = None,
+    state: str | None = None,
+    device_type: str | None = None,
+    limit: int | None = None,
+    **client_options: Any,
+) -> list[Device]:
+    """List devices without constructing a client first.
+
+    A module-level convenience over
+    :meth:`DeviceBaseClient.list_devices`, for a script whose only jobs are
+    discovery and nothing else::
+
+        from devicebase import list_devices
+
+        for device in list_devices(device_type="browser"):
+            print(device.serial, device.display_name)
+
+    Args:
+        keyword: Free-text match against the device name and serial.
+        state: Connection state — ``"busy"``, ``"free"`` or ``"offline"``.
+        device_type: A category (``mobile`` / ``browser`` / ``computer``) or a
+            system type such as ``android`` or ``chrome``.
+        limit: Cap on the number of rows.
+        **client_options: Passed to :class:`DeviceBaseClient` — ``base_url``,
+            ``api_key``, ``timeout``.
+    """
+    with DeviceBaseClient(**client_options) as client:
+        return client.list_devices(
+            keyword=keyword,
+            state=state,
+            device_type=device_type,
+            limit=limit,
+        )

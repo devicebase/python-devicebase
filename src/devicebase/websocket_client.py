@@ -11,10 +11,33 @@ from typing import TYPE_CHECKING, Any
 import websockets
 from websockets.exceptions import ConnectionClosed, InvalidStatus
 
-from devicebase.http_client import AuthenticationError, DeviceBaseError, DeviceNotFoundError
+from devicebase.errors import AuthenticationError, DeviceBaseError, DeviceNotFoundError
+from devicebase.transport import escape_path_segment
 
 if TYPE_CHECKING:
     from websockets.asyncio.client import ClientConnection as WebSocketClientProtocol
+
+
+def _handshake_status(exc: InvalidStatus) -> int | None:
+    """Read the HTTP status from a rejected WebSocket handshake.
+
+    ``websockets`` puts the response on ``exc.response``; there is no
+    ``status_code`` attribute on the exception itself, so reading one directly
+    would silently never match and every rejection would be reported as a
+    generic connection failure.
+    """
+    response = getattr(exc, "response", None)
+    status_code = getattr(response, "status_code", None)
+    return status_code if isinstance(status_code, int) else None
+
+
+def _device_refused(exc: InvalidStatus, serial: str) -> DeviceBaseError | None:
+    """Map a handshake rejection onto the error it actually means."""
+    if _handshake_status(exc) == 408:
+        # The server answers 408 when the device is registered but not
+        # connected: the request timed out waiting for it.
+        return DeviceNotFoundError(f"Device '{serial}' not found or not connected")
+    return None
 
 
 class MinicapClient:
@@ -66,7 +89,7 @@ class MinicapClient:
 
         # Convert http:// to ws:// if needed
         ws_base = base_url.replace("http://", "ws://").replace("https://", "wss://")
-        self._url = f"{ws_base}/v1/minicap/{serial}"
+        self._url = f"{ws_base}/v1/minicap/{escape_path_segment(serial)}"
 
     async def stream_frames(self) -> AsyncIterator[bytes]:
         """Stream JPEG frames from the device.
@@ -118,12 +141,9 @@ class MinicapClient:
                     yield frame_data[:frame_size]
 
         except InvalidStatus as e:
-            status_code = getattr(e, "status_code", None)
-            if status_code == 408:
-                raise DeviceNotFoundError(
-                    f"Device '{self._serial}' not found or not connected"
-                ) from e
-            raise DeviceBaseError(f"WebSocket connection failed: {e}") from e
+            raise _device_refused(e, self._serial) or DeviceBaseError(
+                f"WebSocket connection failed: {e}"
+            ) from e
         except ConnectionClosed as e:
             raise DeviceBaseError(f"WebSocket connection closed: {e}") from e
         except Exception as e:
@@ -201,7 +221,7 @@ class MinitouchClient:
 
         # Convert http:// to ws:// if needed
         ws_base = base_url.replace("http://", "ws://").replace("https://", "wss://")
-        self._url = f"{ws_base}/v1/minitouch/{serial}"
+        self._url = f"{ws_base}/v1/minitouch/{escape_path_segment(serial)}"
         self._websocket: WebSocketClientProtocol | None = None
 
     async def connect(self) -> None:
@@ -217,16 +237,11 @@ class MinitouchClient:
         headers = {"Authorization": f"Bearer {self._api_key}"}
 
         try:
-            self._websocket = await websockets.connect(
-                self._url, additional_headers=headers
-            )
+            self._websocket = await websockets.connect(self._url, additional_headers=headers)
         except InvalidStatus as e:
-            status_code = getattr(e, "status_code", None)
-            if status_code == 408:
-                raise DeviceNotFoundError(
-                    f"Device '{self._serial}' not found or not connected"
-                ) from e
-            raise DeviceBaseError(f"WebSocket connection failed: {e}") from e
+            raise _device_refused(e, self._serial) or DeviceBaseError(
+                f"WebSocket connection failed: {e}"
+            ) from e
 
     async def close(self) -> None:
         """Close the WebSocket connection."""

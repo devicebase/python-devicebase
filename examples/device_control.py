@@ -1,31 +1,62 @@
-"""Device control: info, touch, navigation, and text input."""
+"""Mobile control (Android / HarmonyOS / iOS): touch, navigation, text, shell.
 
-from devicebase import DeviceBaseClient
+Run with:
 
-# Initialize client (reads DEVICEBASE_API_KEY from environment)
-client = DeviceBaseClient(serial="device123")
+    DEVICEBASE_API_KEY=… python examples/device_control.py
+"""
 
-# === Device Info ===
-info = client.get_device_info()
-print(f"Device: {info.data['data']}")
+from devicebase import DeviceBaseClient, list_devices
 
-# === Touch Operations ===
-client.tap(x=540, y=960)  # Single tap at center-bottom
-client.double_tap(x=540, y=960)  # Double tap
-client.long_press(x=540, y=960)  # Long press (opens context menu)
-client.swipe(x1=540, y1=1600, x2=540, y2=400)  # Swipe up
 
-# === Navigation ===
-client.back()  # Press back button
-client.home()  # Press home button
+def main() -> None:
+    mobiles = list_devices(device_type="mobile", limit=1)
+    if not mobiles:
+        print("No mobile device available on this account.")
+        return
+    serial = mobiles[0].serial
 
-# === App Operations ===
-client.launch_app("华为商城")  # Launch Huawei Mall
-app_info = client.get_current_app()
-print(f"Foreground app: {app_info.data['data'].get('app_name')}")
+    # The serial is bound once here; every mobile call below fills it in.
+    with DeviceBaseClient(serial=serial) as client:
+        # --- Device info ---
+        info = client.get_device_info()
+        print(f"Device: {info.data.get('data')}")
 
-# === Text Input ===
-client.input_text("Hello World")  # Type text
-client.clear_text()  # Clear text field
+        # --- Touch ---
+        client.tap(x=540, y=960)  # single tap, centre of the screen
+        client.double_tap(x=540, y=960)
+        client.long_press(x=540, y=960)  # opens a context menu
+        client.swipe(x1=540, y1=1600, x2=540, y2=400)  # swipe up
 
-client.close()
+        # --- Navigation ---
+        client.back()
+        client.home()
+
+        # --- Apps ---
+        client.launch_app("华为商城")
+        current = client.get_current_app()
+        print(f"Foreground app: {current.data.get('data')}")
+        client.stop_app("华为商城")
+        client.stop_current_app()
+
+        # --- Text ---
+        client.input_text("Hello World")
+        client.clear_text()
+
+        # --- UI hierarchy ---
+        hierarchy = client.dump_hierarchy()
+        print(f"Hierarchy payload: {len(str(hierarchy.data))} chars")
+
+        # --- Shell (adb/hdc platforms only) ---
+        result = client.bash("getprop ro.product.model")
+        # A command's own exit status is a result, not an error: it says the
+        # command failed, not that the API call did.
+        print(f"exitCode={result.payload.get('exitCode')} out={result.payload.get('stdout')}")
+
+        # --- Install ---
+        # app_path is a path on the *agent host*, not a local file.
+        # install = client.install_app("/data/local/tmp/app.apk")
+        # status = client.install_status(install.payload["install_id"])
+
+
+if __name__ == "__main__":
+    main()
