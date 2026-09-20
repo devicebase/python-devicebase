@@ -5,12 +5,12 @@ Three device platforms are served, each with its own path family:
 ==============  ============================================  ==========================
 Platform        Devices                                       Path family
 ==============  ============================================  ==========================
-mobile          Android / HarmonyOS / iOS                     ``/v1/{action}/{serial}``
-browser         Chrome / Chromium / Edge over CDP              ``/api/browser/{serial}/{action...}``
-computer        macOS / Windows / Linux desktops               ``/api/computer/{serial}/{action}``
+mobile          Android / HarmonyOS / iOS                     ``/v1/{action}/{serialno}``
+browser         Chrome / Chromium / Edge over CDP              ``/api/browser/{serialno}/{action...}``
+computer        macOS / Windows / Linux desktops               ``/api/computer/{serialno}/{action}``
 ==============  ============================================  ==========================
 
-Every method takes the device serial as its first argument, because a serial is
+Every method takes the device serialno as its first argument, because a serialno is
 only meaningful within one platform family. Use
 :meth:`~devicebase.api.device.DeviceApi.list_devices` to discover them, then:
 
@@ -19,12 +19,12 @@ only meaningful within one platform family. Use
 
     with DeviceBaseHttpClient() as client:
         browser = client.list_devices(device_type="browser")[0]
-        client.browser_navigate(browser.serial, "https://example.com")
-        client.browser_click(browser.serial, "#submit")
+        client.browser_navigate(browser.serialno, "https://example.com")
+        client.browser_click(browser.serialno, "#submit")
     ```
 
 For a mobile device driven repeatedly, :class:`~devicebase.client.DeviceBaseClient`
-binds the serial once so it never has to be repeated.
+binds the serialno once so it never has to be repeated.
 """
 
 from __future__ import annotations
@@ -55,7 +55,7 @@ __all__ = [
 class DeviceBaseHttpClient(BrowserApi, ComputerApi, DeviceApi, MobileApi):
     """HTTP client exposing the whole API surface.
 
-    It is safe to reuse across devices: every method takes the serial
+    It is safe to reuse across devices: every method takes the serialno
     explicitly, so one client with one connection pool can drive many devices.
 
     Args:

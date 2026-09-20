@@ -6,15 +6,15 @@ Three device platforms are covered:
 * **browser** — Chrome / Chromium / Edge over CDP, on ``/api/browser/*``
 * **computer** — macOS / Windows / Linux desktops, on ``/api/computer/*``
 
-Two clients are available. :class:`DeviceBaseClient` binds one serial and fills
-it into every mobile call. :class:`DeviceBaseHttpClient` takes the serial per
+Two clients are available. :class:`DeviceBaseClient` binds one serialno and fills
+it into every mobile call. :class:`DeviceBaseHttpClient` takes the serialno per
 call, and is where the browser and computer action families live.
 
 Example:
     ```python
     from devicebase import DeviceBaseClient
 
-    with DeviceBaseClient(serial="EDGER9DE2GFD03XH-001") as client:
+    with DeviceBaseClient(serialno="EDGER9DE2GFD03XH-001") as client:
         client.tap(100, 200)
         client.get_screenshot()
     ```

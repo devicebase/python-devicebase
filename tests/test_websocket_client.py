@@ -133,28 +133,28 @@ class TestInit:
     """Client construction."""
 
     def test_minicap_explicit_params(self) -> None:
-        client = MinicapClient(base_url="ws://test.com", serial=SERIAL, api_key="k")
+        client = MinicapClient(base_url="ws://test.com", serialno=SERIAL, api_key="k")
         assert client._serial == SERIAL
         assert client._api_key == "k"
         assert client._url == f"ws://test.com/v1/minicap/{SERIAL}"
 
     def test_minicap_converts_http_to_ws(self) -> None:
-        client = MinicapClient(base_url="http://test.com", serial=SERIAL, api_key="k")
+        client = MinicapClient(base_url="http://test.com", serialno=SERIAL, api_key="k")
         assert client._url == f"ws://test.com/v1/minicap/{SERIAL}"
 
     def test_minitouch_converts_https_to_wss(self) -> None:
-        client = MinitouchClient(base_url="https://test.com", serial=SERIAL, api_key="k")
+        client = MinitouchClient(base_url="https://test.com", serialno=SERIAL, api_key="k")
         assert client._url == f"wss://test.com/v1/minitouch/{SERIAL}"
 
     def test_minicap_env_var(self) -> None:
         with patch.dict(os.environ, {"DEVICEBASE_API_KEY": "env-key"}):
-            client = MinicapClient(base_url="ws://test.com", serial=SERIAL)
+            client = MinicapClient(base_url="ws://test.com", serialno=SERIAL)
             assert client._api_key == "env-key"
 
     @pytest.mark.parametrize("client_class", [MinicapClient, MinitouchClient])
     def test_missing_api_key_raises(self, client_class: type[Any]) -> None:
         with patch.dict(os.environ, {}, clear=True), pytest.raises(AuthenticationError):
-            client_class(base_url="ws://test.com", serial=SERIAL)
+            client_class(base_url="ws://test.com", serialno=SERIAL)
 
 
 class TestMinicapStream:
@@ -164,7 +164,7 @@ class TestMinicapStream:
         first, second = b"\xff\xd8first", b"\xff\xd8second"
         connection = FakeConnection([banner(), *framed(first), *framed(second)])
         with patch_connect(FakeConnect(connection)):
-            client = MinicapClient(base_url="ws://test.com", serial=SERIAL, api_key="k")
+            client = MinicapClient(base_url="ws://test.com", serialno=SERIAL, api_key="k")
             frames = await collect_frames(client, 2)
 
         assert frames == [first, second]
@@ -176,7 +176,7 @@ class TestMinicapStream:
             [banner(), struct.pack(">I", len(payload)), payload[:half], payload[half:]]
         )
         with patch_connect(FakeConnect(connection)):
-            client = MinicapClient(base_url="ws://test.com", serial=SERIAL, api_key="k")
+            client = MinicapClient(base_url="ws://test.com", serialno=SERIAL, api_key="k")
             frames = await collect_frames(client, 1)
 
         assert frames == [payload]
@@ -187,7 +187,7 @@ class TestMinicapStream:
         payload = b"\xff\xd8real"
         connection = FakeConnection([banner(), b"\x00", *framed(payload)])
         with patch_connect(FakeConnect(connection)):
-            client = MinicapClient(base_url="ws://test.com", serial=SERIAL, api_key="k")
+            client = MinicapClient(base_url="ws://test.com", serialno=SERIAL, api_key="k")
             frames = await collect_frames(client, 1)
 
         assert frames == [payload]
@@ -195,7 +195,7 @@ class TestMinicapStream:
     async def test_sends_the_bearer_token(self) -> None:
         connect = FakeConnect(FakeConnection([banner()]))
         with patch_connect(connect):
-            client = MinicapClient(base_url="ws://test.com", serial=SERIAL, api_key="k")
+            client = MinicapClient(base_url="ws://test.com", serialno=SERIAL, api_key="k")
             # Asking for one frame is what makes the generator start and
             # connect; the banner arrives, then the fake stream runs dry.
             assert await collect_frames(client, 1) == []
@@ -207,7 +207,7 @@ class TestMinicapStream:
     async def test_short_banner_is_rejected(self) -> None:
         connection = FakeConnection([b"short"])
         with patch_connect(FakeConnect(connection)):
-            client = MinicapClient(base_url="ws://test.com", serial=SERIAL, api_key="k")
+            client = MinicapClient(base_url="ws://test.com", serialno=SERIAL, api_key="k")
             with pytest.raises(DeviceBaseError, match="Invalid minicap banner"):
                 await drain(client)
 
@@ -215,12 +215,12 @@ class TestMinicapStream:
         payload = b"\xff\xd8only"
         connection = FakeConnection([banner(), *framed(payload)])
         with patch_connect(FakeConnect(connection)):
-            client = MinicapClient(base_url="ws://test.com", serial=SERIAL, api_key="k")
+            client = MinicapClient(base_url="ws://test.com", serialno=SERIAL, api_key="k")
             assert await client.capture_frame() == payload
 
     async def test_capture_frame_reports_a_stream_with_no_frames(self) -> None:
         with patch_connect(FakeConnect(FakeConnection([banner()]))):
-            client = MinicapClient(base_url="ws://test.com", serial=SERIAL, api_key="k")
+            client = MinicapClient(base_url="ws://test.com", serialno=SERIAL, api_key="k")
             with pytest.raises(DeviceBaseError):
                 await client.capture_frame()
 
@@ -230,14 +230,14 @@ class TestHandshakeErrors:
 
     async def test_408_is_a_missing_device(self) -> None:
         with patch_connect(FakeConnect(invalid_status(408))):
-            client = MinicapClient(base_url="ws://test.com", serial=SERIAL, api_key="k")
+            client = MinicapClient(base_url="ws://test.com", serialno=SERIAL, api_key="k")
             with pytest.raises(DeviceNotFoundError) as exc_info:
                 await drain(client)
         assert SERIAL in str(exc_info.value)
 
     async def test_other_statuses_are_generic_failures(self) -> None:
         with patch_connect(FakeConnect(invalid_status(401))):
-            client = MinicapClient(base_url="ws://test.com", serial=SERIAL, api_key="k")
+            client = MinicapClient(base_url="ws://test.com", serialno=SERIAL, api_key="k")
             with pytest.raises(DeviceBaseError) as exc_info:
                 await drain(client)
         assert not isinstance(exc_info.value, DeviceNotFoundError)
@@ -245,13 +245,13 @@ class TestHandshakeErrors:
 
     async def test_minitouch_maps_408_too(self) -> None:
         with patch_connect(FakeConnect(invalid_status(408))):
-            client = MinitouchClient(base_url="ws://test.com", serial=SERIAL, api_key="k")
+            client = MinitouchClient(base_url="ws://test.com", serialno=SERIAL, api_key="k")
             with pytest.raises(DeviceNotFoundError):
                 await client.connect()
 
     async def test_a_closed_stream_is_reported(self) -> None:
         with patch_connect(FakeConnect(FakeConnection([banner()]))):
-            client = MinicapClient(base_url="ws://test.com", serial=SERIAL, api_key="k")
+            client = MinicapClient(base_url="ws://test.com", serialno=SERIAL, api_key="k")
             with pytest.raises(DeviceBaseError, match="closed"):
                 _ = [frame async for frame in client.stream_frames()]
 
@@ -261,7 +261,7 @@ async def minitouch() -> AsyncIterator[tuple[MinitouchClient, FakeConnection]]:
     """A connected minitouch client over a fake connection."""
     connection = FakeConnection([b"OK\n"] * 32)
     with patch_connect(FakeConnect(connection)):
-        client = MinitouchClient(base_url="ws://test.com", serial=SERIAL, api_key="k")
+        client = MinitouchClient(base_url="ws://test.com", serialno=SERIAL, api_key="k")
         await client.connect()
         yield client, connection
         await client.close()
@@ -271,7 +271,7 @@ class TestMinitouchCommands:
     """Minitouch sends newline-terminated protocol lines."""
 
     async def test_ensure_connected_before_connect_raises(self) -> None:
-        client = MinitouchClient(base_url="ws://test.com", serial=SERIAL, api_key="k")
+        client = MinitouchClient(base_url="ws://test.com", serialno=SERIAL, api_key="k")
         with pytest.raises(DeviceBaseError, match="WebSocket not connected"):
             client._ensure_connected()
 
@@ -307,7 +307,7 @@ class TestMinitouchCommands:
     async def test_close_releases_the_connection(self) -> None:
         connection = FakeConnection([b"OK\n"])
         with patch_connect(FakeConnect(connection)):
-            client = MinitouchClient(base_url="ws://test.com", serial=SERIAL, api_key="k")
+            client = MinitouchClient(base_url="ws://test.com", serialno=SERIAL, api_key="k")
             await client.connect()
             await client.close()
         assert connection.closed is True
@@ -317,7 +317,7 @@ class TestMinitouchCommands:
         connection = FakeConnection([b"OK\n"])
         with patch_connect(FakeConnect(connection)):
             async with MinitouchClient(
-                base_url="ws://test.com", serial=SERIAL, api_key="k"
+                base_url="ws://test.com", serialno=SERIAL, api_key="k"
             ) as client:
                 assert client._websocket is not None
         assert connection.closed is True

@@ -1,7 +1,7 @@
 """Browser automation (Chrome / Chromium / Edge over CDP).
 
-Browser actions live on :class:`DeviceBaseHttpClient`, not on the serial-bound
-:class:`DeviceBaseClient`, because every one of them takes the serial per call
+Browser actions live on :class:`DeviceBaseHttpClient`, not on the serialno-bound
+:class:`DeviceBaseClient`, because every one of them takes the serialno per call
 — one client drives many browsers.
 
 Run with:
@@ -17,66 +17,66 @@ def main() -> None:
     if not browsers:
         print("No browser device available on this account.")
         return
-    serial = browsers[0].serial
-    print(f"Driving browser {serial}")
+    serialno = browsers[0].serialno
+    print(f"Driving browser {serialno}")
 
     with DeviceBaseHttpClient() as client:
         # --- Lifecycle ---
         # browser_launch starts the CDP endpoint and returns a connectable URL.
-        print(client.browser_launch(serial).payload)
+        print(client.browser_launch(serialno).payload)
 
         # --- Navigation ---
-        client.browser_navigate(serial, "https://example.com")
-        client.browser_refresh(serial)
-        client.browser_go_back(serial)
-        client.browser_go_forward(serial)
+        client.browser_navigate(serialno, "https://example.com")
+        client.browser_refresh(serialno)
+        client.browser_go_back(serialno)
+        client.browser_go_forward(serialno)
 
         # --- State ---
-        state = client.browser_state(serial)
+        state = client.browser_state(serialno)
         print(f"URL: {state.payload.get('url')} title: {state.payload.get('title')}")
 
-        for tab in client.browser_tabs(serial).payload.get("tabs", []):
+        for tab in client.browser_tabs(serialno).payload.get("tabs", []):
             print(f"  tab {tab.get('id')}: {tab.get('url')}")
 
         # --- DOM ---
         # Selectors are CSS selectors.
-        if client.browser_exists(serial, "h1").payload.get("exists"):
-            print(f"h1 text: {client.browser_text(serial, 'h1').payload}")
+        if client.browser_exists(serialno, "h1").payload.get("exists"):
+            print(f"h1 text: {client.browser_text(serialno, 'h1').payload}")
 
-        print(f"href: {client.browser_attribute(serial, 'a', 'href').payload}")
+        print(f"href: {client.browser_attribute(serialno, 'a', 'href').payload}")
 
-        client.browser_click(serial, "a")
-        client.browser_fill(serial, "#search", "devicebase")
-        client.browser_select(serial, "select#country", "CN")
+        client.browser_click(serialno, "a")
+        client.browser_fill(serialno, "#search", "devicebase")
+        client.browser_select(serialno, "select#country", "CN")
 
         # Free-form input goes through CDP Input.insertText, which is reliable
         # for CJK unlike synthesised key events.
-        client.browser_input(serial, "你好")
+        client.browser_input(serialno, "你好")
 
         # --- Keyboard ---
         # Editing shortcuts act on the page. Browser-chrome shortcuts such as
         # Control+t are not reachable — CDP drives the page, not the browser UI.
-        client.browser_hotkey(serial, ["Meta", "a"])
+        client.browser_hotkey(serialno, ["Meta", "a"])
 
         # --- JavaScript ---
         # Danger tier: the script runs with the page's own privileges, which is
         # the same reach as shell access to the browser profile.
-        print(client.browser_execute(serial, "document.title").payload)
+        print(client.browser_execute(serialno, "document.title").payload)
 
         # --- Tabs ---
-        client.browser_tab_open(serial, "https://example.org")
-        client.browser_tab_switch(serial, "1")
-        client.browser_tab_close(serial, "1")
-        client.browser_tab_close_all(serial)
+        client.browser_tab_open(serialno, "https://example.org")
+        client.browser_tab_switch(serialno, "1")
+        client.browser_tab_close(serialno, "1")
+        client.browser_tab_close_all(serialno)
 
         # A selector that matches nothing is reported inside a successful HTTP
         # response, so it raises BusinessError rather than being returned.
         try:
-            client.browser_click(serial, "#does-not-exist")
+            client.browser_click(serialno, "#does-not-exist")
         except BusinessError as exc:
             print(f"click failed as expected: code={exc.code} {exc.message[:80]}")
 
-        client.browser_close(serial)
+        client.browser_close(serialno)
 
 
 if __name__ == "__main__":

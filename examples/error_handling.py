@@ -31,7 +31,7 @@ MISSING_SERIAL = "definitely-not-a-device"
 
 def bad_api_key() -> None:
     """A rejected key is an HTTP 401, carrying the server's own message."""
-    with DeviceBaseClient(serial="x", api_key="invalid-key") as client:
+    with DeviceBaseClient(serialno="x", api_key="invalid-key") as client:
         try:
             client.get_device_info()
         except AuthenticationError as exc:
@@ -40,7 +40,7 @@ def bad_api_key() -> None:
 
 def wrong_serial() -> None:
     try:
-        with DeviceBaseClient(serial=MISSING_SERIAL, timeout=60.0) as client:
+        with DeviceBaseClient(serialno=MISSING_SERIAL, timeout=60.0) as client:
             client.get_device_info()
     except DeviceNotFoundError as exc:
         print(f"not found HTTP {exc.status_code}: {exc.message[:70]}")
@@ -53,7 +53,7 @@ def failed_action() -> None:
         print("no devices available")
         return
 
-    with DeviceBaseClient(serial=devices[0].serial) as client:
+    with DeviceBaseClient(serialno=devices[0].serialno) as client:
         try:
             client.tap(1, 1)
         except BusinessError as exc:
@@ -72,7 +72,7 @@ def one_handler_for_everything() -> None:
     by DeviceBaseError — catching the base class first would swallow them.
     """
     try:
-        with DeviceBaseClient(serial=MISSING_SERIAL, timeout=60.0) as client:
+        with DeviceBaseClient(serialno=MISSING_SERIAL, timeout=60.0) as client:
             client.get_device_info()
     except ValidationError as exc:
         print(f"validation: {exc.message[:70]}")
@@ -109,7 +109,7 @@ def retry_with_backoff(max_attempts: int = 3, delay: float = 1.0) -> None:
         print("no devices available")
         return
 
-    with DeviceBaseClient(serial=devices[0].serial) as client:
+    with DeviceBaseClient(serialno=devices[0].serialno) as client:
         for attempt in range(1, max_attempts + 1):
             try:
                 client.get_device_info()
@@ -128,7 +128,7 @@ if __name__ == "__main__":
     print("=== Rejected API key ===")
     bad_api_key()
 
-    print("\n=== Unknown serial ===")
+    print("\n=== Unknown serialno ===")
     wrong_serial()
 
     print("\n=== Action failure inside HTTP 200 ===")

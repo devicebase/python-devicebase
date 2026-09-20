@@ -90,7 +90,7 @@ class TestResponseContainers:
 
     def test_device_info_keeps_the_serial_and_payload(self) -> None:
         info = DeviceInfo.from_dict("dev-1", {"battery": 85})
-        assert info.serial == "dev-1"
+        assert info.serialno == "dev-1"
         assert info.data == {"battery": 85}
 
     def test_app_info(self) -> None:
@@ -130,23 +130,33 @@ class TestDevice:
     def test_parses_a_real_row(self) -> None:
         device = Device.from_dict(DEVICE_ROW)
         assert device.id == 10009
-        assert device.serial == "EDGER9DE2GFD03XH-001"
+        assert device.serialno == "EDGER9DE2GFD03XH-001"
         assert device.state == "free"
         assert device.type == "adb"
         assert device.os_type == "Android"
         assert device.location == "广东深圳"
 
-    def test_serial_falls_back_to_serialno(self) -> None:
-        # Some routes name the same column "serialno"; both must resolve, since
-        # the value is what every control call takes.
-        assert Device.from_dict({"serialno": "db-1"}).serial == "db-1"
+    def test_reads_the_serialno_field(self) -> None:
+        assert Device.from_dict({"serialno": "db-1"}).serialno == "db-1"
 
-    def test_serial_prefers_the_serial_field(self) -> None:
-        assert Device.from_dict({"serial": "a", "serialno": "b"}).serial == "a"
+    def test_falls_back_to_the_legacy_serial_field(self) -> None:
+        # The older Python service names the same column `serial`. Deployment
+        # of the two services disagree, so both spellings have to resolve.
+        assert Device.from_dict({"serial": "legacy-1"}).serialno == "legacy-1"
+
+    def test_serialno_wins_when_both_keys_are_present(self) -> None:
+        # Reading `serial` first would silently depend on the fallback against
+        # a server that sends only `serialno`.
+        assert Device.from_dict({"serial": "a", "serialno": "b"}).serialno == "b"
+
+    def test_serial_is_a_deprecated_alias(self) -> None:
+        device = Device.from_dict({"serialno": "db-1"})
+        with pytest.warns(DeprecationWarning):
+            assert device.serial == "db-1"
 
     def test_missing_fields_default(self) -> None:
         device = Device.from_dict({})
-        assert device.serial == ""
+        assert device.serialno == ""
         assert device.id == 0
         assert device.updated_at is None
 
@@ -154,7 +164,7 @@ class TestDevice:
         device = Device.from_dict({"id": "10009", "name": 42, "serial": None})
         assert device.id == 0  # a string id does not become an int
         assert device.name == ""
-        assert device.serial == ""
+        assert device.serialno == ""
 
     def test_display_name_prefers_alias_then_name_then_serial(self) -> None:
         assert Device.from_dict({"alias_name": "A", "name": "B", "serial": "C"}).display_name == "A"

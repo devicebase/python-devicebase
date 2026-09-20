@@ -1,9 +1,9 @@
 """Usage examples for the DeviceBase Python SDK.
 
-Every example discovers its device rather than hard-coding a serial, so they run
+Every example discovers its device rather than hard-coding a serialno, so they run
 against any account that has one:
 
-    python examples/discovery.py             # finding a serial (start here)
+    python examples/discovery.py             # finding a serialno (start here)
     python examples/device_control.py        # mobile: touch, apps, text, shell
     python examples/browser_automation.py    # browser over CDP
     python examples/computer_control.py      # desktop: mouse, keyboard, host shell

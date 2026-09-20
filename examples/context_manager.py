@@ -1,8 +1,8 @@
 """Client lifecycle, and driving two platforms from one process.
 
 Both clients are context managers, so the connection pool is closed for you.
-DeviceBaseClient is a bound view of one serial; DeviceBaseHttpClient holds the
-full surface and takes a serial per call, which is what a multi-device script
+DeviceBaseClient is a bound view of one serialno; DeviceBaseHttpClient holds the
+full surface and takes a serialno per call, which is what a multi-device script
 wants.
 
 Run with:
@@ -19,19 +19,19 @@ def basic_context_manager() -> None:
         print("No mobile device available.")
         return
 
-    with DeviceBaseClient(serial=devices[0].serial) as client:
+    with DeviceBaseClient(serialno=devices[0].serialno) as client:
         info = client.get_device_info()
-        print(f"Device: {info.serial}")
+        print(f"Device: {info.serialno}")
         client.tap(x=540, y=960)
         print(f"Screenshot: {len(client.get_screenshot())} bytes")
     # The connection pool is closed here.
 
 
 def discovery_then_control() -> None:
-    """Look the serial up first; it is not something to hard-code."""
+    """Look the serialno up first; it is not something to hard-code."""
     with DeviceBaseHttpClient() as client:
         for device in client.list_devices(limit=5):
-            print(f"  {device.serial:32} {device.type:10} {device.state}")
+            print(f"  {device.serialno:32} {device.type:10} {device.state}")
 
 
 def two_platforms_one_process() -> None:
@@ -39,11 +39,11 @@ def two_platforms_one_process() -> None:
     with DeviceBaseHttpClient() as client:
         for device in client.list_devices(limit=3):
             try:
-                image = client.get_screenshot(device.serial)
+                image = client.get_screenshot(device.serialno)
             except Exception as exc:  # noqa: BLE001 - an example, kept short
-                print(f"  {device.serial}: {type(exc).__name__}")
+                print(f"  {device.serialno}: {type(exc).__name__}")
             else:
-                print(f"  {device.serial}: {len(image)} bytes")
+                print(f"  {device.serialno}: {len(image)} bytes")
 
 
 def automation_workflow() -> None:
@@ -52,7 +52,7 @@ def automation_workflow() -> None:
         print("No mobile device available.")
         return
 
-    with DeviceBaseClient(serial=devices[0].serial) as client:
+    with DeviceBaseClient(serialno=devices[0].serialno) as client:
         client.launch_app("com.example.testapp")
         client.tap(x=540, y=960)
         client.input_text("test input")

@@ -31,12 +31,12 @@ def _handshake_status(exc: InvalidStatus) -> int | None:
     return status_code if isinstance(status_code, int) else None
 
 
-def _device_refused(exc: InvalidStatus, serial: str) -> DeviceBaseError | None:
+def _device_refused(exc: InvalidStatus, serialno: str) -> DeviceBaseError | None:
     """Map a handshake rejection onto the error it actually means."""
     if _handshake_status(exc) == 408:
         # The server answers 408 when the device is registered but not
         # connected: the request timed out waiting for it.
-        return DeviceNotFoundError(f"Device '{serial}' not found or not connected")
+        return DeviceNotFoundError(f"Device '{serialno}' not found or not connected")
     return None
 
 
@@ -65,20 +65,20 @@ class MinicapClient:
     def __init__(
         self,
         base_url: str,
-        serial: str,
+        serialno: str,
         api_key: str | None = None,
     ) -> None:
         """Initialize the minicap client.
 
         Args:
             base_url: The WebSocket base URL (ws:// or wss://).
-            serial: The device unique identifier.
+            serialno: The device unique identifier.
             api_key: JWT API key. If not provided, reads from DEVICEBASE_API_KEY.
 
         Raises:
             AuthenticationError: If no API key is available.
         """
-        self._serial = serial
+        self._serial = serialno
         self._api_key = api_key or os.environ.get("DEVICEBASE_API_KEY")
 
         if not self._api_key:
@@ -89,7 +89,7 @@ class MinicapClient:
 
         # Convert http:// to ws:// if needed
         ws_base = base_url.replace("http://", "ws://").replace("https://", "wss://")
-        self._url = f"{ws_base}/v1/minicap/{escape_path_segment(serial)}"
+        self._url = f"{ws_base}/v1/minicap/{escape_path_segment(serialno)}"
 
     async def stream_frames(self) -> AsyncIterator[bytes]:
         """Stream JPEG frames from the device.
@@ -197,20 +197,20 @@ class MinitouchClient:
     def __init__(
         self,
         base_url: str,
-        serial: str,
+        serialno: str,
         api_key: str | None = None,
     ) -> None:
         """Initialize the minitouch client.
 
         Args:
             base_url: The WebSocket base URL (ws:// or wss://).
-            serial: The device unique identifier.
+            serialno: The device unique identifier.
             api_key: JWT API key. If not provided, reads from DEVICEBASE_API_KEY.
 
         Raises:
             AuthenticationError: If no API key is available.
         """
-        self._serial = serial
+        self._serial = serialno
         self._api_key = api_key or os.environ.get("DEVICEBASE_API_KEY")
 
         if not self._api_key:
@@ -221,7 +221,7 @@ class MinitouchClient:
 
         # Convert http:// to ws:// if needed
         ws_base = base_url.replace("http://", "ws://").replace("https://", "wss://")
-        self._url = f"{ws_base}/v1/minitouch/{escape_path_segment(serial)}"
+        self._url = f"{ws_base}/v1/minitouch/{escape_path_segment(serialno)}"
         self._websocket: WebSocketClientProtocol | None = None
 
     async def connect(self) -> None:

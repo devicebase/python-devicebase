@@ -7,7 +7,7 @@ from devicebase import DeviceBaseClient
 
 async def basic_touch():
     """Basic tap and swipe using MinitouchClient."""
-    client = DeviceBaseClient(serial="device123")
+    client = DeviceBaseClient(serialno="device123")
     minitouch = client.minitouch_client()
 
     async with minitouch:
@@ -40,7 +40,7 @@ async def basic_touch():
 
 async def drag_and_drop():
     """Drag and drop gesture simulation."""
-    client = DeviceBaseClient(serial="device123")
+    client = DeviceBaseClient(serialno="device123")
     minitouch = client.minitouch_client()
 
     start_x, start_y = 540, 1600

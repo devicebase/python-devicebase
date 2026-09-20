@@ -1,6 +1,6 @@
 """Device discovery — ``GET /v1/devices``.
 
-This is how a ``serial`` is found before any other call: every platform method
+This is how a ``serialno`` is found before any other call: every platform method
 needs one, and nothing else in the API hands them out.
 
 Filtering is resolved server-side, and the ``type`` value is forwarded verbatim.
@@ -32,7 +32,7 @@ class DeviceApi(HttpTransport):
         """List the devices accessible to the current API key.
 
         Args:
-            keyword: Free-text match against the device name and serial.
+            keyword: Free-text match against the device name and serialno.
             state: Connection state — ``"busy"``, ``"free"`` or ``"offline"``.
             device_type: A category (``mobile`` / ``browser`` / ``computer``) or
                 a system type — see the module docstring. Named

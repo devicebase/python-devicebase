@@ -1,24 +1,29 @@
-"""A serial-bound facade over the HTTP client, for one device.
+"""A serialno-bound facade over the HTTP client, for one device.
 
-Every mobile action here fills in the serial, so an Android / HarmonyOS / iOS
+Every mobile action here fills in the serialno, so an Android / HarmonyOS / iOS
 automation script never repeats it. The facade is platform-agnostic about the
-serial it holds — binding a browser or computer serial works exactly as well —
-but the *browser* and *computer* action families stay on
+serialno it holds — binding a browser or computer serialno works exactly as
+well — but the *browser* and *computer* action families stay on
 :class:`~devicebase.http_client.DeviceBaseHttpClient`, reached through
-:attr:`DeviceBaseClient.http`, because those actions all take a serial per call
-and one client is meant to drive many devices.
+:attr:`DeviceBaseClient.http`, because those actions all take a serialno per
+call and one client is meant to drive many devices.
 """
 
 from __future__ import annotations
 
 import os
+import warnings
 from collections.abc import AsyncIterator
 from typing import Any
 
 # AuthenticationError is re-exported: earlier versions of this module raised it
 # from here, so `from devicebase.client import AuthenticationError` has to keep
 # working.
-from devicebase.errors import AuthenticationError, DeviceBaseError  # noqa: F401
+from devicebase.errors import (  # noqa: F401
+    AuthenticationError,
+    DeviceBaseError,
+    ValidationError,
+)
 from devicebase.http_client import DeviceBaseHttpClient
 from devicebase.models import (
     AppInfo,
@@ -34,7 +39,7 @@ from devicebase.websocket_client import MinicapClient, MinitouchClient
 
 
 class DeviceBaseClient:
-    """A serial-bound view of the API for one device.
+    """A serialno-bound view of the API for one device.
 
     Configuration can come from constructor arguments or the environment:
 
@@ -45,7 +50,7 @@ class DeviceBaseClient:
         ```python
         from devicebase import DeviceBaseClient, Point
 
-        with DeviceBaseClient(serial="EDGER9DE2GFD03XH-001") as client:
+        with DeviceBaseClient(serialno="db-mttul4i41di8") as client:
             client.tap(100, 200)
             client.swipe(0, 500, 500, 500)
             client.launch_app("com.example.app")
@@ -53,16 +58,18 @@ class DeviceBaseClient:
         ```
 
     Args:
-        serial: The device serial from :meth:`~devicebase.api.device.DeviceApi.list_devices`.
-            Optional so that discovery works before any device is known; the
-            mobile actions raise :class:`~devicebase.errors.DeviceBaseError`
-            until one is bound.
+        serialno: The device serialno from
+            :meth:`~devicebase.api.device.DeviceApi.list_devices`. Optional so
+            that discovery works before any device is known; the mobile actions
+            raise :class:`~devicebase.errors.DeviceBaseError` until one is bound.
         base_url: API base URL. Falls back to ``DEVICEBASE_BASE_URL``.
         api_key: Bearer token. Falls back to ``DEVICEBASE_API_KEY``.
         timeout: Default deadline for a request, in seconds.
+        serial: Deprecated alias for ``serialno``; passing both raises.
 
     Raises:
         AuthenticationError: If no API key is available.
+        ValidationError: If both ``serialno`` and ``serial`` are passed.
     """
 
     #: Kept as a class attribute because this class has always exposed it there.
@@ -70,12 +77,23 @@ class DeviceBaseClient:
 
     def __init__(
         self,
-        serial: str | None = None,
+        serialno: str | None = None,
         base_url: str | None = None,
         api_key: str | None = None,
         timeout: float = DEFAULT_TIMEOUT,
+        *,
+        serial: str | None = None,
     ) -> None:
-        self._serial = serial
+        if serial is not None:
+            if serialno is not None:
+                raise ValidationError("Pass either serialno= or the deprecated serial=, not both.")
+            warnings.warn(
+                "DeviceBaseClient(serial=…) is deprecated; use serialno=.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            serialno = serial
+        self._serialno = serialno
         self._base_url = (
             base_url or os.environ.get("DEVICEBASE_BASE_URL") or DEFAULT_BASE_URL
         ).rstrip("/")
@@ -87,9 +105,19 @@ class DeviceBaseClient:
         )
 
     @property
+    def serialno(self) -> str | None:
+        """The serialno this client is bound to, or ``None``."""
+        return self._serialno
+
+    @property
     def serial(self) -> str | None:
-        """The serial this client is bound to, or ``None``."""
-        return self._serial
+        """Deprecated alias for :attr:`serialno`."""
+        warnings.warn(
+            "DeviceBaseClient.serial is deprecated; use .serialno.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._serialno
 
     @property
     def http(self) -> DeviceBaseHttpClient:
@@ -133,26 +161,26 @@ class DeviceBaseClient:
 
     def get_device_info(self) -> DeviceInfo:
         """Get detailed information about the device."""
-        return self._http.get_device_info(self._require_serial())
+        return self._http.get_device_info(self._require_serialno())
 
     # Touch
 
     def tap(self, x: int, y: int) -> OperationResult:
         """Tap once at the given coordinates."""
-        return self._http.tap(self._require_serial(), Point(x=x, y=y))
+        return self._http.tap(self._require_serialno(), Point(x=x, y=y))
 
     def double_tap(self, x: int, y: int) -> OperationResult:
         """Tap twice at the given coordinates."""
-        return self._http.double_tap(self._require_serial(), Point(x=x, y=y))
+        return self._http.double_tap(self._require_serialno(), Point(x=x, y=y))
 
     def long_press(self, x: int, y: int) -> OperationResult:
         """Press and hold at the given coordinates."""
-        return self._http.long_press(self._require_serial(), Point(x=x, y=y))
+        return self._http.long_press(self._require_serialno(), Point(x=x, y=y))
 
     def swipe(self, x1: int, y1: int, x2: int, y2: int) -> OperationResult:
         """Swipe from ``(x1, y1)`` to ``(x2, y2)``."""
         return self._http.swipe(
-            self._require_serial(),
+            self._require_serialno(),
             Bounds(x1=x1, y1=y1, x2=x2, y2=y2),
         )
 
@@ -160,39 +188,39 @@ class DeviceBaseClient:
 
     def back(self) -> OperationResult:
         """Press the device back button."""
-        return self._http.back(self._require_serial())
+        return self._http.back(self._require_serialno())
 
     def home(self) -> OperationResult:
         """Press the device home button."""
-        return self._http.home(self._require_serial())
+        return self._http.home(self._require_serialno())
 
     # Apps
 
     def launch_app(self, app_name: str) -> OperationResult:
         """Launch an application on the device."""
-        return self._http.launch_app(self._require_serial(), app_name)
+        return self._http.launch_app(self._require_serialno(), app_name)
 
     def stop_app(self, app_name: str) -> OperationResult:
         """Stop an application on the device."""
-        return self._http.stop_app(self._require_serial(), app_name)
+        return self._http.stop_app(self._require_serialno(), app_name)
 
     def stop_current_app(self) -> OperationResult:
         """Stop the app currently in the foreground."""
-        return self._http.stop_current_app(self._require_serial())
+        return self._http.stop_current_app(self._require_serialno())
 
     def get_current_app(self) -> AppInfo:
         """Get information about the current foreground app."""
-        return self._http.get_current_app(self._require_serial())
+        return self._http.get_current_app(self._require_serialno())
 
     # Text
 
     def input_text(self, text: str) -> OperationResult:
         """Insert text into the focused field."""
-        return self._http.input_text(self._require_serial(), text)
+        return self._http.input_text(self._require_serialno(), text)
 
     def clear_text(self) -> OperationResult:
         """Clear the focused text field."""
-        return self._http.clear_text(self._require_serial())
+        return self._http.clear_text(self._require_serialno())
 
     # Shell
 
@@ -202,23 +230,23 @@ class DeviceBaseClient:
         The command's own exit status comes back as ``data["exitCode"]``; a
         non-zero value does not raise.
         """
-        return self._http.bash(self._require_serial(), command)
+        return self._http.bash(self._require_serialno(), command)
 
     # UI hierarchy
 
     def dump_hierarchy(self) -> HierarchyInfo:
         """Get the current UI hierarchy tree."""
-        return self._http.dump_hierarchy(self._require_serial())
+        return self._http.dump_hierarchy(self._require_serialno())
 
     # Install
 
     def install_app(self, app_path: str) -> OperationResult:
         """Start installing a package, from a path on the agent host."""
-        return self._http.install_app(self._require_serial(), app_path)
+        return self._http.install_app(self._require_serialno(), app_path)
 
     def install_status(self, install_id: str) -> OperationResult:
         """Query the background install task started by :meth:`install_app`."""
-        return self._http.install_status(self._require_serial(), install_id)
+        return self._http.install_status(self._require_serialno(), install_id)
 
     # Screenshots
 
@@ -228,11 +256,11 @@ class DeviceBaseClient:
         The route dispatches by device type, so a client bound to a browser or
         computer serial captures that platform's screen instead.
         """
-        return self._http.get_screenshot(self._require_serial())
+        return self._http.get_screenshot(self._require_serialno())
 
     def download_screenshot(self) -> bytes:
         """Fetch the device's screenshot as a file attachment."""
-        return self._http.download_screenshot(self._require_serial())
+        return self._http.download_screenshot(self._require_serialno())
 
     # WebSocket clients
 
@@ -247,7 +275,7 @@ class DeviceBaseClient:
         """
         return MinicapClient(
             base_url=self._base_url,
-            serial=self._require_serial(),
+            serialno=self._require_serialno(),
             api_key=self._api_key,
         )
 
@@ -262,7 +290,7 @@ class DeviceBaseClient:
         """
         return MinitouchClient(
             base_url=self._base_url,
-            serial=self._require_serial(),
+            serialno=self._require_serialno(),
             api_key=self._api_key,
         )
 
@@ -275,16 +303,16 @@ class DeviceBaseClient:
 
     # Internals
 
-    def _require_serial(self) -> str:
-        """Return the bound serial, or explain how to bind one."""
-        if not self._serial:
+    def _require_serialno(self) -> str:
+        """Return the bound serialno, or explain how to bind one."""
+        if not self._serialno:
             raise DeviceBaseError(
-                "No device serial is bound. Pass serial=… to DeviceBaseClient, "
-                "or use client.http.<action>(serial, …) and pass one per call. "
-                "DeviceBaseClient.list_devices() finds the serials available to "
+                "No device serialno is bound. Pass serialno=… to DeviceBaseClient, "
+                "or use client.http.<action>(serialno, …) and pass one per call. "
+                "DeviceBaseClient.list_devices() finds the serialnos available to "
                 "the current API key."
             )
-        return self._serial
+        return self._serialno
 
 
 def list_devices(

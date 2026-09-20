@@ -13,10 +13,10 @@ def main() -> None:
     if not mobiles:
         print("No mobile device available on this account.")
         return
-    serial = mobiles[0].serial
+    serialno = mobiles[0].serialno
 
-    # The serial is bound once here; every mobile call below fills it in.
-    with DeviceBaseClient(serial=serial) as client:
+    # The serialno is bound once here; every mobile call below fills it in.
+    with DeviceBaseClient(serialno=serialno) as client:
         # --- Device info ---
         info = client.get_device_info()
         print(f"Device: {info.data.get('data')}")

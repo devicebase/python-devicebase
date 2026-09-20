@@ -4,7 +4,7 @@ Python SDK for the [Devicebase](https://devicebase.cn) device automation API, co
 
 | Platform | Devices | Client | Actions |
 |----------|---------|--------|---------|
-| **mobile** | Android, HarmonyOS, iOS | `DeviceBaseClient` (serial-bound) or `DeviceBaseHttpClient` | 17 |
+| **mobile** | Android, HarmonyOS, iOS | `DeviceBaseClient` (serialno-bound) or `DeviceBaseHttpClient` | 17 |
 | **browser** | Chrome / Chromium / Edge over CDP | `DeviceBaseHttpClient` | 21 |
 | **computer** | macOS / Windows / Linux desktops | `DeviceBaseHttpClient` | 15 |
 
@@ -23,11 +23,11 @@ Requires Python 3.10+.
 ```python
 from devicebase import DeviceBaseClient, list_devices
 
-# 1. Find a device. The serial is discovered, never guessed.
-serial = list_devices(device_type="mobile", limit=1)[0].serial
+# 1. Find a device. The serialno is discovered, never guessed.
+serialno = list_devices(device_type="mobile", limit=1)[0].serialno
 
 # 2. Bind it once and drive it.
-with DeviceBaseClient(serial=serial) as client:
+with DeviceBaseClient(serialno=serialno) as client:
     client.tap(540, 960)
     client.swipe(540, 1600, 540, 400)
     client.launch_app("com.example.app")
@@ -47,9 +47,9 @@ Both can be passed to the constructor instead (`api_key=`, `base_url=`, `timeout
 
 ## Two clients
 
-**`DeviceBaseClient(serial=…)`** is a serial-bound view of one device. Every mobile action fills in the serial, so a script never repeats it. `serial` is optional — leave it off and the client can still call `list_devices`, which is how discovery works before a serial is known.
+**`DeviceBaseClient(serialno=…)`** is a serialno-bound view of one device. Every mobile action fills in the serialno, so a script never repeats it. `serialno` is optional — leave it off and the client can still call `list_devices`, which is how discovery works before a serialno is known.
 
-**`DeviceBaseHttpClient()`** takes the serial per call, and is where the browser and computer families live. One client with one connection pool drives as many devices as you like; reach it from a bound client with `client.http`.
+**`DeviceBaseHttpClient()`** takes the serialno per call, and is where the browser and computer families live. One client with one connection pool drives as many devices as you like; reach it from a bound client with `client.http`.
 
 Both are context managers and close their connection pool on exit.
 
@@ -65,7 +65,7 @@ list_devices(state="free")  # busy / free / offline
 list_devices(keyword="pixel")
 ```
 
-A `Device` carries `serial` (the identifier every call takes), `state`, `type`, `os_type`, `os_version`, `name`, `alias_name`, `model`, `brand`, `location`, `updated_at` and more.
+A `Device` carries `serialno` (the identifier every call takes), `state`, `type`, `os_type`, `os_version`, `name`, `alias_name`, `model`, `brand`, `location`, `updated_at` and more.
 
 `device_type` accepts a **category** (`mobile` / `browser` / `computer`) or a **system type** (`android` / `harmonyos` / `ios` / `macos` / `windows` / `linux` / `chrome` / `chromium` / `edge` / `other`). Both are forwarded verbatim as the `type` query parameter and resolved server-side.
 
@@ -74,7 +74,7 @@ A `Device` carries `serial` (the identifier every call takes), `state`, `type`, 
 
 ## Mobile (Android / HarmonyOS / iOS)
 
-Path family `/v1/{action}/{serial}`. Available on both clients; the bound form drops the serial argument.
+Path family `/v1/{action}/{serialno}`. Available on both clients; the bound form drops the serialno argument.
 
 | Area | Methods |
 |------|---------|
@@ -88,7 +88,7 @@ Path family `/v1/{action}/{serial}`. Available on both clients; the bound form d
 | Install | `install_app`, `install_status` |
 
 ```python
-with DeviceBaseClient(serial=serial) as client:
+with DeviceBaseClient(serialno=serialno) as client:
     client.bash("getprop ro.product.model")
     install = client.install_app("/data/local/tmp/app.apk")
     client.install_status(install.payload["install_id"])
@@ -98,7 +98,7 @@ with DeviceBaseClient(serial=serial) as client:
 
 ## Browser (Chrome / Chromium / Edge over CDP)
 
-Path family `/api/browser/{serial}/{action}`. Selectors are CSS selectors. The read-only actions (`state`, `tabs`, `text`, `attribute`, `exists`) carry no body; their arguments travel as query parameters.
+Path family `/api/browser/{serialno}/{action}`. Selectors are CSS selectors. The read-only actions (`state`, `tabs`, `text`, `attribute`, `exists`) carry no body; their arguments travel as query parameters.
 
 | Area | Methods |
 |------|---------|
@@ -114,10 +114,10 @@ Path family `/api/browser/{serial}/{action}`. Selectors are CSS selectors. The r
 from devicebase import DeviceBaseHttpClient
 
 with DeviceBaseHttpClient() as client:
-    serial = client.list_devices(device_type="browser")[0].serial
-    client.browser_navigate(serial, "https://example.com")
-    client.browser_click(serial, "#submit")
-    print(client.browser_state(serial).payload)
+    serialno = client.list_devices(device_type="browser")[0].serialno
+    client.browser_navigate(serialno, "https://example.com")
+    client.browser_click(serialno, "#submit")
+    print(client.browser_state(serialno).payload)
 ```
 
 > [!WARNING]
@@ -127,7 +127,7 @@ Editing shortcuts (`Meta a`, `Control c`) act on the page. Browser-chrome shortc
 
 ## Computer (macOS / Windows / Linux)
 
-Path family `/api/computer/{serial}/{action}`. Coordinates are absolute screen pixels. `position`, `screen_size` and `permissions` are read-only.
+Path family `/api/computer/{serialno}/{action}`. Coordinates are absolute screen pixels. `position`, `screen_size` and `permissions` are read-only.
 
 | Area | Methods |
 |------|---------|
@@ -138,11 +138,11 @@ Path family `/api/computer/{serial}/{action}`. Coordinates are absolute screen p
 
 ```python
 with DeviceBaseHttpClient() as client:
-    serial = client.list_devices(device_type="computer")[0].serial
-    size = client.computer_screen_size(serial).payload
-    client.computer_click(serial, size["width"] // 2, size["height"] // 2)
-    client.computer_click(serial, 100, 100, button="right")
-    client.computer_scroll(serial, "down", amount=3)
+    serialno = client.list_devices(device_type="computer")[0].serialno
+    size = client.computer_screen_size(serialno).payload
+    client.computer_click(serialno, size["width"] // 2, size["height"] // 2)
+    client.computer_click(serialno, 100, 100, button="right")
+    client.computer_scroll(serialno, "down", amount=3)
 ```
 
 > [!WARNING]
@@ -155,9 +155,9 @@ with DeviceBaseHttpClient() as client:
 ## Screenshots
 
 ```python
-with DeviceBaseClient(serial=serial) as client:
-    jpeg = client.get_screenshot()  # POST /v1/screen/{serial}
-    jpeg = client.download_screenshot()  # GET /v1/screenshot/{serial}
+with DeviceBaseClient(serialno=serialno) as client:
+    jpeg = client.get_screenshot()  # POST /v1/screen/{serialno}
+    jpeg = client.download_screenshot()  # GET /v1/screenshot/{serialno}
 ```
 
 `get_screenshot` is **cross-family**: the server dispatches `/v1/screen` by device type (computer → full-desktop capture, browser → CDP, otherwise the device's image queue), so one call serves all three platforms. The server chooses the format — JPEG today.
@@ -186,9 +186,9 @@ The second layer is the one that is easy to miss. The control API answers action
 from devicebase import BusinessError, DeviceNotFoundError
 
 try:
-    client.browser_click(serial, "#maybe-missing")
+    client.browser_click(serialno, "#maybe-missing")
 except DeviceNotFoundError:
-    ...  # the serial is wrong, or the device is offline
+    ...  # the serialno is wrong, or the device is offline
 except BusinessError as exc:
     print(exc.code, exc.body)  # the action itself failed; status_code is None
 ```
@@ -200,7 +200,7 @@ Every error keeps the server's own message, so a specific complaint like `设备
 A successful call returns an `OperationResult` even when the *action* reports a non-zero status. A shell command exiting 1 arrives as:
 
 ```python
-result = client.computer_bash(serial, "exit 1")
+result = client.computer_bash(serialno, "exit 1")
 result.success  # True — the API call succeeded
 result.payload["exitCode"]  # 1 — the command's own status
 result.data  # the whole envelope, code and message included
@@ -214,14 +214,36 @@ This release adds the browser and computer platforms and changes a few things a 
 
 | Removed | Replacement |
 |---------|-------------|
-| `get_screenshot_post()` | `get_screenshot()` — it now POSTs to `/v1/screen/{serial}`, like every other SDK |
-| `get_mjpeg_stream()` | `minicap_client()` / `stream_minicap()`. `GET /v1/mjpeg/{serial}` is not a route — it answers 404 |
+| `get_screenshot_post()` | `get_screenshot()` — it now POSTs to `/v1/screen/{serialno}`, like every other SDK |
+| `get_mjpeg_stream()` | `minicap_client()` / `stream_minicap()`. `GET /v1/mjpeg/{serialno}` is not a route — it answers 404 |
+
+### `serial` is renamed `serialno`
+
+The device identifier is now spelled `serialno` everywhere, matching the field
+name in the API contract and the other SDKs. The old spelling still works and
+warns, so nothing breaks on upgrade:
+
+| Was | Now | Old form |
+|-----|-----|----------|
+| `DeviceBaseClient(serial=…)` | `DeviceBaseClient(serialno=…)` | accepted, `DeprecationWarning` |
+| `client.serial` | `client.serialno` | accepted, `DeprecationWarning` |
+| `Device.serial` | `Device.serialno` | accepted, `DeprecationWarning` |
+| `DeviceInfo.serial` | `DeviceInfo.serialno` | accepted, `DeprecationWarning` |
+| every method's first argument | unchanged positionally | the parameter is now named `serialno` |
+
+Passing both `serialno=` and `serial=` raises `ValidationError` rather than
+silently picking one. The deprecated forms are removed in the next major
+release.
+
+`Device` also now reads the identifier from the `serialno` key **first**, with
+`serial` as the fallback — the previous order depended on the fallback against
+a server that sends only `serialno`.
 
 `DEFAULT_BASE_URL` is still a class attribute on both clients, and `AuthenticationError` is still importable from `devicebase.client` as well as `devicebase.errors`.
 
 Changed:
 
-- `DeviceBaseClient(serial=…)` — `serial` is now optional, so `list_devices` works before a serial is known. Positional and keyword use are unchanged.
+- `DeviceBaseClient(serialno=…)` — `serialno` is now optional, so `list_devices` works before a serialno is known. Positional and keyword use are unchanged.
 - `list_devices(limit=0)` now raises `ValidationError`. Go omits a non-positive limit and Node sends it.
 - `state="online"` was never a valid filter value; the API defines `busy`, `free` and `offline`.
 
@@ -236,7 +258,7 @@ import asyncio
 
 
 async def stream():
-    with DeviceBaseClient(serial=serial) as client:
+    with DeviceBaseClient(serialno=serialno) as client:
         async for frame in client.stream_minicap():
             with open("frame.jpg", "wb") as f:
                 f.write(frame)
@@ -257,7 +279,7 @@ A handshake rejected with `408` means the device is registered but not connected
 
 Runnable scripts in [examples/](examples/) — each discovers its own device:
 
-- [discovery.py](examples/discovery.py) — finding a serial
+- [discovery.py](examples/discovery.py) — finding a serialno
 - [device_control.py](examples/device_control.py) — mobile: touch, apps, text, shell
 - [browser_automation.py](examples/browser_automation.py) — browser over CDP
 - [computer_control.py](examples/computer_control.py) — desktop: mouse, keyboard, host shell

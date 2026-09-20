@@ -1,4 +1,4 @@
-"""Tests for the serial-bound facade, DeviceBaseClient."""
+"""Tests for the serialno-bound facade, DeviceBaseClient."""
 
 import json
 import os
@@ -16,6 +16,7 @@ from devicebase.errors import (
     BusinessError,
     DeviceBaseError,
     DeviceNotFoundError,
+    ValidationError,
 )
 from devicebase.models import Bounds, Point
 
@@ -30,10 +31,10 @@ def route() -> Any:
         yield respx.route().mock(return_value=httpx.Response(200, json={"code": 200, "data": {}}))
 
 
-def make_client(serial: str | None = SERIAL, **kwargs: Any) -> DeviceBaseClient:
+def make_client(serialno: str | None = SERIAL, **kwargs: Any) -> DeviceBaseClient:
     """Build a facade pointed at the fake API host."""
     return DeviceBaseClient(
-        serial=serial,
+        serialno=serialno,
         base_url=BASE_URL,
         api_key="test-key",
         **kwargs,
@@ -45,7 +46,7 @@ class TestConstruction:
 
     def test_explicit_params(self) -> None:
         client = make_client()
-        assert client.serial == SERIAL
+        assert client.serialno == SERIAL
         assert client._base_url == BASE_URL  # noqa: SLF001
         client.close()
 
@@ -54,17 +55,17 @@ class TestConstruction:
             os.environ,
             {"DEVICEBASE_BASE_URL": BASE_URL, "DEVICEBASE_API_KEY": "env-key"},
         ):
-            client = DeviceBaseClient(serial=SERIAL)
+            client = DeviceBaseClient(serialno=SERIAL)
             assert client._base_url == BASE_URL  # noqa: SLF001
             client.close()
 
     def test_missing_api_key_raises(self) -> None:
         with patch.dict(os.environ, {}, clear=True), pytest.raises(AuthenticationError):
-            DeviceBaseClient(serial=SERIAL, base_url=BASE_URL)
+            DeviceBaseClient(serialno=SERIAL, base_url=BASE_URL)
 
     def test_serial_is_optional(self) -> None:
-        client = make_client(serial=None)
-        assert client.serial is None
+        client = make_client(serialno=None)
+        assert client.serialno is None
         client.close()
 
     def test_context_manager(self) -> None:
@@ -75,6 +76,38 @@ class TestConstruction:
         with make_client() as client:
             assert hasattr(client.http, "browser_click")
             assert hasattr(client.http, "computer_bash")
+
+
+class TestDeprecatedSerialAlias:
+    """`serial` still works, warns, and loses to `serialno`."""
+
+    def test_serial_keyword_still_binds(self) -> None:
+        with pytest.warns(DeprecationWarning, match="serialno"):
+            client = DeviceBaseClient(serial=SERIAL, base_url=BASE_URL, api_key="k")
+        assert client.serialno == SERIAL
+        client.close()
+
+    def test_serial_property_still_reads(self) -> None:
+        with make_client() as client, pytest.warns(DeprecationWarning, match="serialno"):
+            assert client.serial == SERIAL
+
+    def test_passing_both_is_rejected(self) -> None:
+        # Silently picking one would hide a caller's mistake.
+        with pytest.raises(ValidationError):
+            DeviceBaseClient(
+                serialno=SERIAL,
+                serial="other",
+                base_url=BASE_URL,
+                api_key="k",
+            )
+
+    def test_serialno_alone_does_not_warn(self) -> None:
+        import warnings as warnings_module
+
+        with warnings_module.catch_warnings():
+            warnings_module.simplefilter("error", DeprecationWarning)
+            with make_client() as client:
+                assert client.serialno == SERIAL
 
 
 SERIAL_BOUND_CALLS: list[tuple[str, Callable[[DeviceBaseClient], Any], str]] = [
@@ -107,7 +140,7 @@ SERIAL_BOUND_METHODS = {
 
 
 class TestSerialBinding:
-    """Every mobile action fills in the bound serial."""
+    """Every mobile action fills in the bound serialno."""
 
     @pytest.mark.parametrize(
         ("name", "call", "path"),
@@ -152,30 +185,30 @@ class TestSerialBinding:
 
 
 class TestUnboundSerial:
-    """A client with no serial bound can still discover devices."""
+    """A client with no serialno bound can still discover devices."""
 
     def test_mobile_action_explains_what_to_do(self) -> None:
         with (
-            make_client(serial=None) as client,
-            pytest.raises(DeviceBaseError, match="No device serial is bound") as exc_info,
+            make_client(serialno=None) as client,
+            pytest.raises(DeviceBaseError, match="No device serialno is bound") as exc_info,
         ):
             client.tap(1, 2)
         assert "list_devices" in str(exc_info.value)
 
     def test_list_devices_works_without_a_serial(self, route: Any) -> None:
-        with make_client(serial=None) as client:
+        with make_client(serialno=None) as client:
             assert client.list_devices() == []
         assert route.calls.last.request.url.path == "/v1/devices"
 
     def test_websocket_clients_need_a_serial(self) -> None:
-        with make_client(serial=None) as client:
-            with pytest.raises(DeviceBaseError, match="No device serial is bound"):
+        with make_client(serialno=None) as client:
+            with pytest.raises(DeviceBaseError, match="No device serialno is bound"):
                 client.minicap_client()
-            with pytest.raises(DeviceBaseError, match="No device serial is bound"):
+            with pytest.raises(DeviceBaseError, match="No device serialno is bound"):
                 client.minitouch_client()
 
     def test_browser_actions_need_no_bound_serial(self, route: Any) -> None:
-        with make_client(serial=None) as client:
+        with make_client(serialno=None) as client:
             client.http.browser_refresh("br-1")
         assert route.calls.last.request.url.path == "/api/browser/br-1/refresh"
 
@@ -190,7 +223,7 @@ class TestWebSocketClients:
         assert minicap._url == f"ws://api.test/v1/minicap/{SERIAL}"  # noqa: SLF001
 
     def test_https_base_url_upgrades_to_wss(self) -> None:
-        with DeviceBaseClient(serial=SERIAL, base_url="https://api.test", api_key="k") as c:
+        with DeviceBaseClient(serialno=SERIAL, base_url="https://api.test", api_key="k") as c:
             assert c.minicap_client()._url.startswith("wss://")  # noqa: SLF001
 
     def test_minitouch_client_uses_the_bound_serial(self) -> None:
@@ -217,7 +250,7 @@ class TestDeviceListing:
         )
         with make_client() as client:
             devices = client.list_devices(device_type="browser", limit=5, state="free")
-        assert [d.serial for d in devices] == ["br-1"]
+        assert [d.serialno for d in devices] == ["br-1"]
         params = route.calls.last.request.url.params
         assert params["type"] == "browser"
         assert params["limit"] == "5"
@@ -233,7 +266,7 @@ class TestModuleLevelListDevices:
             return_value=httpx.Response(200, json={"code": 200, "data": [{"serial": "a"}]})
         )
         devices = list_devices(base_url=BASE_URL, api_key="k")
-        assert [d.serial for d in devices] == ["a"]
+        assert [d.serialno for d in devices] == ["a"]
 
     @respx.mock
     def test_uses_the_environment_when_unconfigured(self) -> None:

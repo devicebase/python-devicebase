@@ -7,7 +7,7 @@ from devicebase import DeviceBaseClient
 
 async def stream_screen():
     """Stream and display device screen frames."""
-    client = DeviceBaseClient(serial="device123")
+    client = DeviceBaseClient(serialno="device123")
 
     # Use the high-level stream method
     frame_count = 0
@@ -28,7 +28,7 @@ async def stream_screen():
 
 async def capture_single():
     """Capture a single frame from the stream."""
-    client = DeviceBaseClient(serial="device123")
+    client = DeviceBaseClient(serialno="device123")
 
     # Using minicap_client for more control
     minicap = client.minicap_client()

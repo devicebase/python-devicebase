@@ -33,17 +33,17 @@ pytestmark = [
     ),
 ]
 
-#: A serial that no account has, used to exercise the 404 path.
+#: A serialno that no account has, used to exercise the 404 path.
 MISSING_SERIAL = "definitely-not-a-device"
 
 
 @pytest.fixture(scope="module")
-def serial() -> str:
-    """A real serial, discovered the way a caller would."""
+def serialno() -> str:
+    """A real serialno, discovered the way a caller would."""
     devices = list_devices(limit=10)
     if not devices:
         pytest.skip("the account has no devices")
-    return devices[0].serial
+    return devices[0].serialno
 
 
 class TestDiscovery:
@@ -53,9 +53,9 @@ class TestDiscovery:
         devices = list_devices(limit=10)
         assert isinstance(devices, list)
         for device in devices:
-            # `serial` is what every control call takes, so an empty one would
+            # `serialno` is what every control call takes, so an empty one would
             # make the listing useless.
-            assert device.serial
+            assert device.serialno
             assert device.state
             assert device.display_name
 
@@ -64,10 +64,10 @@ class TestDiscovery:
 
 
 class TestControl:
-    """A real serial, on whichever platform it belongs to."""
+    """A real serialno, on whichever platform it belongs to."""
 
-    def test_device_info_or_a_reported_failure(self, serial: str) -> None:
-        with DeviceBaseClient(serial=serial) as client:
+    def test_device_info_or_a_reported_failure(self, serialno: str) -> None:
+        with DeviceBaseClient(serialno=serialno) as client:
             try:
                 info = client.get_device_info()
             except BusinessError:
@@ -75,20 +75,20 @@ class TestControl:
                 # and a payload are correct; anything else is a bug.
                 pass
             else:
-                assert info.serial == serial
+                assert info.serialno == serialno
                 assert info.data
 
     def test_unknown_serial_is_a_404(self) -> None:
-        with DeviceBaseClient(serial=MISSING_SERIAL, timeout=60.0) as client:
+        with DeviceBaseClient(serialno=MISSING_SERIAL, timeout=60.0) as client:
             with pytest.raises(DeviceNotFoundError) as exc_info:
                 client.get_device_info()
             assert exc_info.value.status_code == 404
             # The server's own message survives into the error.
             assert "device" in exc_info.value.message.lower()
 
-    def test_failure_is_reported_rather_than_returned(self, serial: str) -> None:
+    def test_failure_is_reported_rather_than_returned(self, serialno: str) -> None:
         """A failing action raises, so a caller cannot mistake it for success."""
-        with DeviceBaseClient(serial=serial) as client:
+        with DeviceBaseClient(serialno=serialno) as client:
             try:
                 client.tap(1, 1)
             except DeviceBaseError:

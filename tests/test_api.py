@@ -566,7 +566,7 @@ class TestResults:
             respx.route().mock(return_value=httpx.Response(200, json={"code": 200, "battery": 85}))
             with make_client() as client:
                 info = client.get_device_info(MOBILE)
-        assert info.serial == MOBILE
+        assert info.serialno == MOBILE
         assert info.data["battery"] == 85
 
 
@@ -604,7 +604,7 @@ class TestListDevices:
             with make_client() as client:
                 devices = client.list_devices(device_type="mobile")
 
-        assert [d.serial for d in devices] == ["EDGER9DE2GFD03XH-001", "br-1"]
+        assert [d.serialno for d in devices] == ["EDGER9DE2GFD03XH-001", "br-1"]
         assert devices[0].display_name == "My Phone"
         assert devices[1].display_name == "br-1"
 
@@ -628,4 +628,4 @@ class TestListDevices:
                 )
             )
             with make_client() as client:
-                assert [d.serial for d in client.list_devices()] == ["a"]
+                assert [d.serialno for d in client.list_devices()] == ["a"]

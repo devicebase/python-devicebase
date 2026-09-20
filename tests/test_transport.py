@@ -296,7 +296,7 @@ class TestParamHandling:
             client.browser_state("a/b c")
         assert route.called
         # raw_path is bytes, and undecoded — which is the point: an unescaped
-        # serial would change the route rather than just the value.
+        # serialno would change the route rather than just the value.
         assert route.calls.last.request.url.raw_path == b"/api/browser/a%2Fb%20c/state"
 
     @respx.mock
@@ -360,7 +360,7 @@ class TestBadResponses:
         )
         with make_client() as client:
             devices = client.list_devices()
-        assert [d.serial for d in devices] == ["a"]
+        assert [d.serialno for d in devices] == ["a"]
 
 
 class TestTruncate:

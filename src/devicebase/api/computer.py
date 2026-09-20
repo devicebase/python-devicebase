@@ -1,9 +1,9 @@
 """Computer platform API (macOS / Windows / Linux desktops).
 
-Path family: ``POST/GET /api/computer/{serial}/{action}``.
+Path family: ``POST/GET /api/computer/{serialno}/{action}``.
 
-``serial`` is the platform serial of a registered computer device — the
-``serial`` field from :meth:`~devicebase.api.device.DeviceApi.list_devices`
+``serialno`` is the platform serialno of a registered computer device — the
+``serialno`` field from :meth:`~devicebase.api.device.DeviceApi.list_devices`
 with ``type="computer"``. Coordinates are absolute screen pixels.
 
 The read-only actions (``position``, ``screen_size``, ``permissions``) carry no
@@ -34,9 +34,9 @@ from devicebase.transport import (
 )
 
 
-def computer_path(action: str, serial: str) -> str:
-    """Build ``/api/computer/{serial}/{action}``."""
-    return f"/api/computer/{escape_path_segment(serial)}/{action}"
+def computer_path(action: str, serialno: str) -> str:
+    """Build ``/api/computer/{serialno}/{action}``."""
+    return f"/api/computer/{escape_path_segment(serialno)}/{action}"
 
 
 def bash_timeout(timeout_seconds: int) -> float:
@@ -71,13 +71,13 @@ def _check_choice(value: str, allowed: tuple[str, ...], argument: str) -> None:
 
 
 class ComputerApi(HttpTransport):
-    """Computer actions, each taking the device serial explicitly."""
+    """Computer actions, each taking the device serialno explicitly."""
 
     # --- Mouse ------------------------------------------------------------
 
     def computer_click(
         self,
-        serial: str,
+        serialno: str,
         x: int,
         y: int,
         button: MouseButton | None = None,
@@ -85,7 +85,7 @@ class ComputerApi(HttpTransport):
         """Click at absolute screen coordinates.
 
         Args:
-            serial: The device serial.
+            serialno: The device serialno.
             x: Horizontal screen pixel.
             y: Vertical screen pixel.
             button: ``"left"``, ``"right"`` or ``"middle"``. Omitted, the field
@@ -99,15 +99,17 @@ class ComputerApi(HttpTransport):
         if button is not None:
             _check_choice(button, MOUSE_BUTTONS, "button")
             body["button"] = button
-        return self._operation("POST", computer_path("click", serial), body=body)
+        return self._operation("POST", computer_path("click", serialno), body=body)
 
-    def computer_double_click(self, serial: str, x: int, y: int) -> OperationResult:
+    def computer_double_click(self, serialno: str, x: int, y: int) -> OperationResult:
         """Double click at absolute screen coordinates, with the left button."""
-        return self._operation("POST", computer_path("double_click", serial), body={"x": x, "y": y})
+        return self._operation(
+            "POST", computer_path("double_click", serialno), body={"x": x, "y": y}
+        )
 
     def computer_long_click(
         self,
-        serial: str,
+        serialno: str,
         x: int,
         y: int,
         duration: int = 0,
@@ -115,7 +117,7 @@ class ComputerApi(HttpTransport):
         """Press and hold the left button at the coordinates.
 
         Args:
-            serial: The device serial.
+            serialno: The device serialno.
             x: Horizontal screen pixel.
             y: Vertical screen pixel.
             duration: Hold time in seconds. Zero leaves the field out and the
@@ -124,15 +126,15 @@ class ComputerApi(HttpTransport):
         body: dict[str, Any] = {"x": x, "y": y}
         if duration:
             body["duration"] = duration
-        return self._operation("POST", computer_path("long_click", serial), body=body)
+        return self._operation("POST", computer_path("long_click", serialno), body=body)
 
-    def computer_move(self, serial: str, x: int, y: int) -> OperationResult:
+    def computer_move(self, serialno: str, x: int, y: int) -> OperationResult:
         """Move the mouse to absolute screen coordinates, without clicking."""
-        return self._operation("POST", computer_path("move", serial), body={"x": x, "y": y})
+        return self._operation("POST", computer_path("move", serialno), body={"x": x, "y": y})
 
     def computer_drag(
         self,
-        serial: str,
+        serialno: str,
         x1: int,
         y1: int,
         x2: int,
@@ -140,18 +142,18 @@ class ComputerApi(HttpTransport):
     ) -> OperationResult:
         """Press the left button at ``(x1, y1)``, move to ``(x2, y2)``, release."""
         body = {"x1": x1, "y1": y1, "x2": x2, "y2": y2}
-        return self._operation("POST", computer_path("drag", serial), body=body)
+        return self._operation("POST", computer_path("drag", serialno), body=body)
 
     def computer_scroll(
         self,
-        serial: str,
+        serialno: str,
         direction: ScrollDirection,
         amount: int = 0,
     ) -> OperationResult:
         """Scroll the mouse wheel.
 
         Args:
-            serial: The device serial.
+            serialno: The device serialno.
             direction: ``"up"``, ``"down"``, ``"left"`` or ``"right"``.
             amount: Scroll amount. Zero leaves the field out and the server
                 applies its own default.
@@ -164,56 +166,56 @@ class ComputerApi(HttpTransport):
         body: dict[str, Any] = {"direction": direction}
         if amount:
             body["amount"] = amount
-        return self._operation("POST", computer_path("scroll", serial), body=body)
+        return self._operation("POST", computer_path("scroll", serialno), body=body)
 
     # --- Keyboard ---------------------------------------------------------
 
-    def computer_type_text(self, serial: str, text: str) -> OperationResult:
+    def computer_type_text(self, serialno: str, text: str) -> OperationResult:
         """Type text at the current caret of the focused application."""
         return self._operation(
             "POST",
-            computer_path("type_text", serial),
+            computer_path("type_text", serialno),
             body=InputTextRequest(text=text).to_dict(),
         )
 
-    def computer_press(self, serial: str, key: str) -> OperationResult:
+    def computer_press(self, serialno: str, key: str) -> OperationResult:
         """Press a single key, e.g. ``"Enter"`` or ``"F5"``."""
-        return self._operation("POST", computer_path("press", serial), body={"key": key})
+        return self._operation("POST", computer_path("press", serialno), body={"key": key})
 
-    def computer_hotkey(self, serial: str, keys: list[str]) -> OperationResult:
+    def computer_hotkey(self, serialno: str, keys: list[str]) -> OperationResult:
         """Press the given keys together, e.g. ``["Meta", "c"]``."""
-        return self._operation("POST", computer_path("hotkey", serial), body={"keys": keys})
+        return self._operation("POST", computer_path("hotkey", serialno), body={"keys": keys})
 
     # --- System -----------------------------------------------------------
 
-    def computer_position(self, serial: str) -> OperationResult:
+    def computer_position(self, serialno: str) -> OperationResult:
         """Get the current mouse position."""
-        return self._operation("GET", computer_path("position", serial))
+        return self._operation("GET", computer_path("position", serialno))
 
-    def computer_screen_size(self, serial: str) -> OperationResult:
+    def computer_screen_size(self, serialno: str) -> OperationResult:
         """Get the primary screen size in pixels."""
-        return self._operation("GET", computer_path("screen_size", serial))
+        return self._operation("GET", computer_path("screen_size", serialno))
 
-    def computer_permissions(self, serial: str) -> OperationResult:
+    def computer_permissions(self, serialno: str) -> OperationResult:
         """Get the desktop-control permission status.
 
         Screen recording and accessibility permissions are granted per
         application on macOS, so a missing one shows up here rather than as a
         mysteriously failed click.
         """
-        return self._operation("GET", computer_path("permissions", serial))
+        return self._operation("GET", computer_path("permissions", serialno))
 
-    def computer_launch_app(self, serial: str, app_name: str) -> OperationResult:
+    def computer_launch_app(self, serialno: str, app_name: str) -> OperationResult:
         """Launch a desktop application."""
         return self._operation(
             "POST",
-            computer_path("launch_app", serial),
+            computer_path("launch_app", serialno),
             body=LaunchAppRequest(app_name=app_name).to_dict(),
         )
 
     # --- Blocking actions -------------------------------------------------
 
-    def computer_wait(self, serial: str, milliseconds: int) -> OperationResult:
+    def computer_wait(self, serialno: str, milliseconds: int) -> OperationResult:
         """Block for the given duration, in milliseconds.
 
         The deadline is widened to cover the wait itself — the shared 30s
@@ -223,14 +225,14 @@ class ComputerApi(HttpTransport):
         seconds = max(0, milliseconds) / 1000
         return self._operation(
             "POST",
-            computer_path("wait", serial),
+            computer_path("wait", serialno),
             body={"seconds": seconds},
             timeout=wait_timeout(milliseconds),
         )
 
     def computer_bash(
         self,
-        serial: str,
+        serialno: str,
         command: str,
         timeout_seconds: int = 0,
     ) -> OperationResult:
@@ -251,7 +253,7 @@ class ComputerApi(HttpTransport):
             body["timeout"] = timeout_seconds
         return self._operation(
             "POST",
-            computer_path("bash", serial),
+            computer_path("bash", serialno),
             body=body,
             timeout=bash_timeout(timeout_seconds),
         )

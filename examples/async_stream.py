@@ -21,7 +21,7 @@ async def stream_with_save(output_dir: str = "frames"):
     """Stream frames and save to disk."""
     os.makedirs(output_dir, exist_ok=True)
 
-    client = DeviceBaseClient(serial="device123")
+    client = DeviceBaseClient(serialno="device123")
     frame_count = 0
 
     try:
@@ -49,7 +49,7 @@ async def stream_with_save(output_dir: str = "frames"):
 
 async def stream_with_interval(fps: float = 5.0):
     """Stream frames at a fixed interval (not full speed)."""
-    client = DeviceBaseClient(serial="device123")
+    client = DeviceBaseClient(serialno="device123")
     interval = 1.0 / fps
     frame_count = 0
 
@@ -75,7 +75,7 @@ async def stream_with_interval(fps: float = 5.0):
 
 async def stream_encode_base64():
     """Stream frames encoded as base64 (for API transmission)."""
-    client = DeviceBaseClient(serial="device123")
+    client = DeviceBaseClient(serialno="device123")
     frame_count = 0
 
     async for frame in client.stream_minicap():

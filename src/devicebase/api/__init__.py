@@ -5,9 +5,9 @@ Each module layers one platform's actions onto :class:`~devicebase.transport.Htt
 ======================  ==============================================================
 Platform                Path family
 ======================  ==============================================================
-:mod:`~devicebase.api.mobile`    ``/v1/{action}/{serial}``
-:mod:`~devicebase.api.browser`   ``/api/browser/{serial}/{action...}``
-:mod:`~devicebase.api.computer`  ``/api/computer/{serial}/{action}``
+:mod:`~devicebase.api.mobile`    ``/v1/{action}/{serialno}``
+:mod:`~devicebase.api.browser`   ``/api/browser/{serialno}/{action...}``
+:mod:`~devicebase.api.computer`  ``/api/computer/{serialno}/{action}``
 :mod:`~devicebase.api.device`    ``/v1/devices``
 ======================  ==============================================================
 

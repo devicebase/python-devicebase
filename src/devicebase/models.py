@@ -8,6 +8,7 @@ individually because it is the discovery result every other call depends on.
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Final, Literal
@@ -184,13 +185,23 @@ class DeviceInfo:
     The payload is kept as a mapping because its shape differs per platform.
     """
 
-    serial: str
+    serialno: str
     data: dict[str, Any] = field(default_factory=dict)
 
+    @property
+    def serial(self) -> str:
+        """Deprecated alias for :attr:`serialno`."""
+        warnings.warn(
+            "DeviceInfo.serial is deprecated; use DeviceInfo.serialno.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.serialno
+
     @classmethod
-    def from_dict(cls, serial: str, data: dict[str, Any]) -> DeviceInfo:
+    def from_dict(cls, serialno: str, data: dict[str, Any]) -> DeviceInfo:
         """Create DeviceInfo from an API response."""
-        return cls(serial=serial, data=data)
+        return cls(serialno=serialno, data=data)
 
 
 @dataclass(frozen=True)
@@ -261,14 +272,14 @@ class OperationResult:
 class Device:
     """One row of the device list.
 
-    ``serial`` is the identifier every control method takes — it is what the
-    ``/v1/devices`` route names ``serial``, e.g. ``"EDGER9DE2GFD03XH-001"``.
+    ``serialno`` is the identifier every control method takes — it is what the
+    ``/v1/devices`` route names ``serialno``, e.g. ``"db-mttul4i41di8"``.
     ``device_sn`` is the physical serial; the gateway resolves either, but
-    ``serial`` is the primary key and the one this SDK hands back.
+    ``serialno`` is the primary key and the one this SDK hands back.
 
     Attributes:
         id: Numeric device id.
-        serial: Platform identifier, used as the serial in every call.
+        serialno: Platform identifier, used as the serialno in every call.
         device_sn: Physical serial, when the row carries one.
         state: Connection state — ``"busy"``, ``"free"`` or ``"offline"``.
         name: Registered device name.
@@ -289,7 +300,7 @@ class Device:
     """
 
     id: int = 0
-    serial: str = ""
+    serialno: str = ""
     device_sn: str = ""
     state: str = ""
     name: str = ""
@@ -306,17 +317,28 @@ class Device:
     network: str = ""
     updated_at: datetime | None = None
 
+    @property
+    def serial(self) -> str:
+        """Deprecated alias for :attr:`serialno`."""
+        warnings.warn(
+            "Device.serial is deprecated; use Device.serialno.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.serialno
+
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Device:
         """Create a Device from one row of ``GET /v1/devices``.
 
-        The identifier is read from ``serial``; ``serialno`` is accepted as a
-        fallback because some routes name the same column that way. Both are
-        what a control call takes.
+        The identifier is read from ``serialno``. ``serial`` is accepted as a
+        fallback because the older Python service names the same column that
+        way; deployments of the two services disagree, so both are honoured.
+        Either value is what a control call takes.
         """
         return cls(
             id=_as_int(data.get("id")),
-            serial=_as_str(data.get("serial")) or _as_str(data.get("serialno")),
+            serialno=_as_str(data.get("serialno")) or _as_str(data.get("serial")),
             device_sn=_as_str(data.get("device_sn")),
             state=_as_str(data.get("state")),
             name=_as_str(data.get("name")),
@@ -336,5 +358,5 @@ class Device:
 
     @property
     def display_name(self) -> str:
-        """The friendliest available label, falling back to the serial."""
-        return self.alias_name or self.name or self.serial
+        """The friendliest available label, falling back to the serialno."""
+        return self.alias_name or self.name or self.serialno
