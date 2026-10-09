@@ -8,6 +8,7 @@ Platform        Devices                                       Path family
 mobile          Android / HarmonyOS / iOS                     ``/v1/{action}/{serialno}``
 browser         Chrome / Chromium / Edge over CDP              ``/api/browser/{serialno}/{action...}``
 computer        macOS / Windows / Linux desktops               ``/api/computer/{serialno}/{action}``
+cloud browser   browsers the platform runs for you               ``/v1/browser/*``
 ==============  ============================================  ==========================
 
 Every method takes the device serialno as its first argument, because a serialno is
@@ -29,7 +30,7 @@ binds the serialno once so it never has to be repeated.
 
 from __future__ import annotations
 
-from devicebase.api import BrowserApi, ComputerApi, DeviceApi, MobileApi
+from devicebase.api import BrowserApi, CloudBrowserApi, ComputerApi, DeviceApi, MobileApi
 from devicebase.errors import (
     AuthenticationError,
     BusinessError,
@@ -41,6 +42,7 @@ from devicebase.errors import (
 __all__ = [
     "AuthenticationError",
     "BrowserApi",
+    "CloudBrowserApi",
     "BusinessError",
     "ComputerApi",
     "DeviceApi",
@@ -52,7 +54,7 @@ __all__ = [
 ]
 
 
-class DeviceBaseHttpClient(BrowserApi, ComputerApi, DeviceApi, MobileApi):
+class DeviceBaseHttpClient(CloudBrowserApi, BrowserApi, ComputerApi, DeviceApi, MobileApi):
     """HTTP client exposing the whole API surface.
 
     It is safe to reuse across devices: every method takes the serialno

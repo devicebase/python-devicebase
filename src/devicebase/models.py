@@ -360,3 +360,120 @@ class Device:
     def display_name(self) -> str:
         """The friendliest available label, falling back to the serialno."""
         return self.alias_name or self.name or self.serialno
+
+
+@dataclass(frozen=True)
+class CloudBrowserCreateResult:
+    """What a successful ``cloud_browser_create`` hands back.
+
+    Creating is asynchronous — the browser has to start and register itself —
+    so the call waits for that and reports both halves: ``serialno`` once the
+    browser exists as a device, and ``device_sn`` either way.
+
+    ``registered`` being ``False`` is **not** a failure: the browser is still
+    starting. Ask again with
+    :meth:`~devicebase.api.cloud_browser.CloudBrowserApi.cloud_browser_status`
+    using ``device_sn``, or delete it with the same value.
+
+    Attributes:
+        serialno: The platform identifier every other browser call takes. Empty
+            until the browser has registered.
+        device_sn: The node-side identifier it registers under. Valid as a
+            handle whether or not registration has happened yet.
+        name: The platform's own identity name (`Browser-` plus the first eight
+            characters of the serial). Not the name you asked for — that is
+            ``alias_name``.
+        alias_name: The name passed to ``cloud_browser_create``, verbatim, or
+            empty when none was given. The platform pins it at creation and the
+            node's later re-registrations cannot change it: a node calls its
+            instance ``<requested>-<port>``, which is not what a caller should
+            be shown.
+        registered: Whether the device row exists yet.
+    """
+
+    serialno: str = ""
+    device_sn: str = ""
+    name: str = ""
+    alias_name: str = ""
+    registered: bool = False
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> CloudBrowserCreateResult:
+        return cls(
+            serialno=_as_str(data.get("serialno")),
+            device_sn=_as_str(data.get("device_sn")),
+            name=_as_str(data.get("name")),
+            alias_name=_as_str(data.get("alias_name")),
+            registered=bool(data.get("registered")),
+        )
+
+
+@dataclass(frozen=True)
+class CloudBrowserQuota:
+    """The account's cloud browser allowance.
+
+    Counted from the same source as the check creation performs, so the two
+    cannot disagree. Only cloud browsers count — ones you attached yourself are
+    not part of it.
+
+    Attributes:
+        limit: How many cloud browsers the account may have.
+        used: How many it has.
+        remaining: How many may still be created; never negative.
+    """
+
+    limit: int = 0
+    used: int = 0
+    remaining: int = 0
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> CloudBrowserQuota:
+        return cls(
+            limit=_as_int(data.get("limit")),
+            used=_as_int(data.get("used")),
+            remaining=_as_int(data.get("remaining")),
+        )
+
+
+@dataclass(frozen=True)
+class CloudBrowserStatus:
+    """Whether a created cloud browser has registered itself yet.
+
+    ``registered`` is ``False`` while the browser is still starting up, which
+    is a normal answer rather than an error — polling for it is quiet. The
+    remaining fields are only meaningful once it is ``True``.
+
+    Attributes:
+        registered: Whether the device row exists yet.
+        device_id: Numeric device id, once registered.
+        serialno: The platform identifier to drive it with, once registered.
+        name: The platform's identity name for the browser.
+        alias_name: The name the caller asked for, empty when none was given.
+        state: Connection state — ``"busy"``, ``"free"`` or ``"offline"``.
+        server_url: Relay host the platform reaches it through. Its presence is
+            what "can I start using it" depends on.
+        is_cloud: Whether the platform built this one (as opposed to a browser
+            attached by hand). Always true for a browser this call created.
+    """
+
+    registered: bool = False
+    device_id: int = 0
+    serialno: str = ""
+    name: str = ""
+    alias_name: str = ""
+    state: str = ""
+    server_url: str = ""
+    is_cloud: bool = False
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> CloudBrowserStatus:
+        return cls(
+            registered=bool(data.get("registered")),
+            device_id=_as_int(data.get("device_id")),
+            serialno=_as_str(data.get("serialno")),
+            name=_as_str(data.get("name")),
+            alias_name=_as_str(data.get("alias_name")),
+            state=_as_str(data.get("state")),
+            server_url=_as_str(data.get("server_url")),
+            is_cloud=bool(data.get("is_cloud")),
+        )

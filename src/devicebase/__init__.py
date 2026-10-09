@@ -6,6 +6,10 @@ Three device platforms are covered:
 * **browser** — Chrome / Chromium / Edge over CDP, on ``/api/browser/*``
 * **computer** — macOS / Windows / Linux desktops, on ``/api/computer/*``
 
+The cloud browser lifecycle (create / delete / status / quota) is reachable on
+:class:`DeviceBaseHttpClient` too, but it is not a device platform: it builds
+and destroys a browser the platform runs for you, on ``/v1/browser/*``.
+
 Two clients are available. :class:`DeviceBaseClient` binds one serialno and fills
 it into every mobile call. :class:`DeviceBaseHttpClient` takes the serialno per
 call, and is where the browser and computer action families live.
@@ -34,6 +38,9 @@ from devicebase.models import (
     SCROLL_DIRECTIONS,
     AppInfo,
     Bounds,
+    CloudBrowserCreateResult,
+    CloudBrowserQuota,
+    CloudBrowserStatus,
     Device,
     DeviceInfo,
     HierarchyInfo,
@@ -64,6 +71,9 @@ __all__ = [
     "SCROLL_DIRECTIONS",
     "AppInfo",
     "Bounds",
+    "CloudBrowserCreateResult",
+    "CloudBrowserQuota",
+    "CloudBrowserStatus",
     "Device",
     "DeviceInfo",
     "HierarchyInfo",

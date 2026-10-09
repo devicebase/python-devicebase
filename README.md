@@ -8,7 +8,7 @@ Python SDK for the [Devicebase](https://devicebase.cn) device automation API, co
 | **browser** | Chrome / Chromium / Edge over CDP | `DeviceBaseHttpClient` | 21 |
 | **computer** | macOS / Windows / Linux desktops | `DeviceBaseHttpClient` | 15 |
 
-Plus device discovery (`list_devices`) and two screenshot routes shared by all three platforms.
+Plus device discovery (`list_devices`), two screenshot routes shared by all three platforms, and the cloud browser lifecycle (`cloud_browser_create` / `cloud_browser_delete` / `cloud_browser_status` / `cloud_browser_quota`) — a browser the platform runs for you.
 
 ## Installation
 
@@ -72,6 +72,8 @@ A `Device` carries `serialno` (the identifier every call takes), `state`, `type`
 > [!NOTE]
 > On the deployment this SDK was verified against, `GET /v1/devices` applied `state` and `limit` but returned every device regardless of `keyword` or `type`. The SDK forwards the filters as documented and does not filter client-side, so check what comes back rather than assuming `type` narrowed the result.
 
+Nothing to control? See [Cloud browsers](#cloud-browsers) — one call gives you a browser, and `Device.is_cloud` tells it apart from one you attached yourself.
+
 ## Mobile (Android / HarmonyOS / iOS)
 
 Path family `/v1/{action}/{serialno}`. Available on both clients; the bound form drops the serialno argument.
@@ -124,6 +126,44 @@ with DeviceBaseHttpClient() as client:
 > `browser_execute` is **danger tier** — the script runs with the page's own privileges, the same reach as shell access to the browser profile.
 
 Editing shortcuts (`Meta a`, `Control c`) act on the page. Browser-chrome shortcuts such as `Control t` are not reachable, because CDP drives the page rather than the browser UI.
+
+## Cloud browsers
+
+Path family `/v1/browser/*`. The methods above drive a browser that already exists — these four build and destroy one. A **cloud browser** is a browser the platform runs for you on its own cluster; a Chrome you attached yourself is not one of them (`Device.is_cloud` tells the two apart, and only cloud browsers count against your quota).
+
+| Method | What it does |
+|--------|--------------|
+| `cloud_browser_create(name=, window_size=, wait_seconds=)` | Ask for a new one. The platform picks the machine — you are not told which. Waits for it to come up and returns the `serialno` |
+| `cloud_browser_status(identifier)` | Whether it has registered yet, and under which serialno |
+| `cloud_browser_quota()` | How many the account may still create |
+| `cloud_browser_delete(identifier)` | Destroy it and its profile — **irreversible**, and not the same as `browser_close` |
+
+```python
+from devicebase import DeviceBaseHttpClient
+
+with DeviceBaseHttpClient() as client:
+    print(client.cloud_browser_quota())  # ask before creating, not after failing
+
+    created = client.cloud_browser_create(name="my-browser")
+    print(created.serialno, created.registered)  # db-… — the key every call takes
+    # created.alias_name is the name you passed, verbatim; created.name is the
+    # platform's own identity for the machine ("Browser-<serial[:8]>").
+
+    # A wait that runs out is not a failure: the browser is still starting, and
+    # device_sn is a valid handle either way.
+    if not created.registered:
+        print(client.cloud_browser_status(created.device_sn).registered)
+
+    client.browser_navigate(created.serialno, "https://example.com")
+
+    client.cloud_browser_delete(created.serialno)  # done with it
+```
+
+A cloud browser always runs **headless** — it lives on a machine nobody is looking at, and there is no argument for it. `cloud_browser_create` waits for the browser to register (15s by default; `wait_seconds=0` answers at once) so that you get the `serialno` without writing a poll loop.
+
+`cloud_browser_delete` takes either the `serialno` or the `device_sn` from creation, and does not wait for the machine: the platform queues the reap and the node collects it on its next heartbeat, so it succeeds even while the node is offline.
+
+Failures carry the HTTP status on `DeviceBaseError.status_code`, and it is what decides whether a retry is worth it: **409** a conflict retrying will not fix (quota exhausted, or the identifier is not a cloud browser), **502** a platform↔node problem somebody has to repair, **503** the temporary kind (no capacity right now, or the node could not be reached) — retry later.
 
 ## Computer (macOS / Windows / Linux)
 
