@@ -8,7 +8,7 @@ Python SDK for the [Devicebase](https://devicebase.cn) device automation API, co
 | **browser** | Chrome / Chromium / Edge over CDP | `DeviceBaseHttpClient` | 21 |
 | **computer** | macOS / Windows / Linux desktops | `DeviceBaseHttpClient` | 15 |
 
-Plus device discovery (`list_devices`), two screenshot routes shared by all three platforms, and the cloud browser lifecycle (`cloud_browser_create` / `cloud_browser_delete` / `cloud_browser_status` / `cloud_browser_quota`) — a browser the platform runs for you.
+Plus device discovery (`list_devices`), two screenshot routes shared by all three platforms, the cloud browser lifecycle (`cloud_browser_create` / `cloud_browser_delete` / `cloud_browser_status` / `cloud_browser_quota`) — a browser the platform runs for you — and the account itself (`user_info` / `user_checkin`).
 
 ## Installation
 
@@ -164,6 +164,35 @@ A cloud browser always runs **headless** — it lives on a machine nobody is loo
 `cloud_browser_delete` takes either the `serialno` or the `device_sn` from creation, and does not wait for the machine: the platform queues the reap and the node collects it on its next heartbeat, so it succeeds even while the node is offline.
 
 Failures carry the HTTP status on `DeviceBaseError.status_code`, and it is what decides whether a retry is worth it: **409** a conflict retrying will not fix (quota exhausted, or the identifier is not a cloud browser), **502** a platform↔node problem somebody has to repair, **503** the temporary kind (no capacity right now, or the node could not be reached) — retry later.
+
+## Account
+
+The account behind the API key — no device involved, and no serialno to pass:
+the key identifies the account, and it can only ever be your own.
+
+```python
+from devicebase import DeviceBaseHttpClient
+
+with DeviceBaseHttpClient() as client:
+    info = client.user_info()
+    print(info.username, info.mobile, info.credits, info.registered_at)
+    # info.can_checkin — whether today's reward is still unclaimed
+
+    reward = client.user_checkin()
+    print(reward.message, reward.credits_earned, reward.credits)
+```
+
+`user_checkin` claims the daily points: 25 on the first day, +10 per consecutive
+day, up to 95 a day. Claiming twice in one day is **not** an error — the second
+call returns `already_checked=True`, `credits_earned=0` and the platform's own
+message ("今日已签到"), with nothing granted. That makes it safe to run from a
+daily scheduled task without checking first:
+
+```python
+# cron: 7 9 * * * python -m my_checkin
+with DeviceBaseHttpClient() as client:
+    client.user_checkin()
+```
 
 ## Computer (macOS / Windows / Linux)
 

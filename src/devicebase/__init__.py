@@ -50,6 +50,8 @@ from devicebase.models import (
     OperationResult,
     Point,
     ScrollDirection,
+    UserCheckin,
+    UserInfo,
 )
 from devicebase.websocket_client import MinicapClient, MinitouchClient
 
@@ -83,6 +85,8 @@ __all__ = [
     "OperationResult",
     "Point",
     "ScrollDirection",
+    "UserCheckin",
+    "UserInfo",
     # WebSocket clients
     "MinicapClient",
     "MinitouchClient",

@@ -10,9 +10,10 @@ Platform                Path family
 :mod:`~devicebase.api.computer`  ``/api/computer/{serialno}/{action}``
 :mod:`~devicebase.api.device`    ``/v1/devices``
 :mod:`~devicebase.api.cloud_browser`  ``/v1/browser/*``
+:mod:`~devicebase.api.user`     ``/v1/user/*``
 ======================  ==============================================================
 
-:class:`~devicebase.http_client.DeviceBaseHttpClient` composes all five, so
+:class:`~devicebase.http_client.DeviceBaseHttpClient` composes all six, so
 their methods are reached as ``client.tap(...)``, ``client.browser_click(...)``
 and so on.
 """
@@ -22,6 +23,7 @@ from devicebase.api.cloud_browser import CloudBrowserApi, cloud_browser_path
 from devicebase.api.computer import ComputerApi, bash_timeout, computer_path, wait_timeout
 from devicebase.api.device import DeviceApi
 from devicebase.api.mobile import MobileApi, mobile_path
+from devicebase.api.user import UserApi
 
 __all__ = [
     "BrowserApi",
@@ -29,6 +31,7 @@ __all__ = [
     "ComputerApi",
     "DeviceApi",
     "MobileApi",
+    "UserApi",
     "bash_timeout",
     "browser_path",
     "cloud_browser_path",

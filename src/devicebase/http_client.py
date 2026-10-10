@@ -30,7 +30,14 @@ binds the serialno once so it never has to be repeated.
 
 from __future__ import annotations
 
-from devicebase.api import BrowserApi, CloudBrowserApi, ComputerApi, DeviceApi, MobileApi
+from devicebase.api import (
+    BrowserApi,
+    CloudBrowserApi,
+    ComputerApi,
+    DeviceApi,
+    MobileApi,
+    UserApi,
+)
 from devicebase.errors import (
     AuthenticationError,
     BusinessError,
@@ -50,11 +57,12 @@ __all__ = [
     "DeviceBaseHttpClient",
     "DeviceNotFoundError",
     "MobileApi",
+    "UserApi",
     "ValidationError",
 ]
 
 
-class DeviceBaseHttpClient(CloudBrowserApi, BrowserApi, ComputerApi, DeviceApi, MobileApi):
+class DeviceBaseHttpClient(UserApi, CloudBrowserApi, BrowserApi, ComputerApi, DeviceApi, MobileApi):
     """HTTP client exposing the whole API surface.
 
     It is safe to reuse across devices: every method takes the serialno

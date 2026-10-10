@@ -477,3 +477,79 @@ class CloudBrowserStatus:
             server_url=_as_str(data.get("server_url")),
             is_cloud=bool(data.get("is_cloud")),
         )
+
+
+# --- Account ----------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class UserInfo:
+    """The account behind the API key.
+
+    Returned by :meth:`~devicebase.api.user.UserApi.user_info`: the name shown
+    in the console, the phone number on the account, the points balance and
+    when the account was created.
+
+    Attributes:
+        id: Account id.
+        username: The name shown in the console.
+        mobile: Phone number on the account.
+        credits: Points balance (积分).
+        registered_at: When the account was created, naive ISO format.
+        can_checkin: Whether today's check-in reward is still unclaimed.
+    """
+
+    id: int = 0
+    username: str = ""
+    mobile: str = ""
+    credits: int = 0
+    registered_at: str = ""
+    can_checkin: bool = False
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> UserInfo:
+        return cls(
+            id=_as_int(data.get("id")),
+            username=_as_str(data.get("username")),
+            mobile=_as_str(data.get("mobile")),
+            credits=_as_int(data.get("credits")),
+            registered_at=_as_str(data.get("registered_at")),
+            can_checkin=bool(data.get("can_checkin")),
+        )
+
+
+@dataclass(frozen=True)
+class UserCheckin:
+    """The result of claiming the daily points.
+
+    ``already_checked`` is a normal outcome rather than an error: claiming
+    twice in one day answers with it ``True``, ``credits_earned`` 0 and the
+    platform's own ``message`` ("今日已签到"). That is what makes the daily
+    check-in safe to run from a scheduled task.
+
+    Attributes:
+        success: Whether this call actually granted points.
+        credits_earned: Points granted, 0 when the day was already claimed.
+        consecutive_days: The streak this claim belongs to; the first day is 1.
+        already_checked: Whether today had already been claimed.
+        message: The platform's own wording, for display as-is.
+        credits: Points balance after this call.
+    """
+
+    success: bool = False
+    credits_earned: int = 0
+    consecutive_days: int = 0
+    already_checked: bool = False
+    message: str = ""
+    credits: int = 0
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> UserCheckin:
+        return cls(
+            success=bool(data.get("success")),
+            credits_earned=_as_int(data.get("credits_earned")),
+            consecutive_days=_as_int(data.get("consecutive_days")),
+            already_checked=bool(data.get("already_checked")),
+            message=_as_str(data.get("message")),
+            credits=_as_int(data.get("credits")),
+        )
